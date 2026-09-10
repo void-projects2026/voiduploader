@@ -1,0 +1,147 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<title>VoidZone Uploader</title>
+<style>
+  :root {
+    color-scheme: dark;
+    --bg: #14161c;
+    --panel: #1c1f28;
+    --border: #2c3040;
+    --text: #e6e8ef;
+    --muted: #8a8fa3;
+    --accent: #5b8def;
+    --ok: #4caf7d;
+    --err: #e2584f;
+    --warn: #d9a441;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font-family: Segoe UI, Arial, sans-serif;
+    font-size: 14px;
+  }
+  header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 14px 20px;
+    border-bottom: 1px solid var(--border);
+  }
+  header h1 { font-size: 16px; margin: 0; }
+  button {
+    background: var(--accent);
+    color: white;
+    border: none;
+    border-radius: 6px;
+    padding: 8px 14px;
+    cursor: pointer;
+    font-size: 13px;
+  }
+  button.secondary {
+    background: transparent;
+    border: 1px solid var(--border);
+    color: var(--text);
+  }
+  button:disabled { opacity: 0.5; cursor: not-allowed; }
+  main { padding: 20px; display: flex; flex-direction: column; gap: 16px; }
+  .toolbar { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+  .folder-path {
+    flex: 1;
+    min-width: 200px;
+    padding: 8px 10px;
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    color: var(--muted);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .providers { display: flex; gap: 14px; align-items: center; }
+  .providers label { display: flex; gap: 6px; align-items: center; cursor: pointer; }
+  table { width: 100%; border-collapse: collapse; background: var(--panel); border: 1px solid var(--border); border-radius: 8px; overflow: hidden; }
+  th, td { padding: 8px 10px; text-align: left; border-bottom: 1px solid var(--border); font-size: 13px; }
+  th { color: var(--muted); font-weight: 600; }
+  tr:last-child td { border-bottom: none; }
+  .status { display: flex; align-items: center; gap: 6px; }
+  .badge { padding: 2px 8px; border-radius: 10px; font-size: 11px; }
+  .badge.queued { background: #2c3040; color: var(--muted); }
+  .badge.uploading { background: rgba(91,141,239,0.15); color: var(--accent); }
+  .badge.done { background: rgba(76,175,125,0.15); color: var(--ok); }
+  .badge.failed { background: rgba(226,88,79,0.15); color: var(--err); }
+  .progress-bar { width: 100%; height: 6px; background: #2c3040; border-radius: 3px; overflow: hidden; }
+  .progress-fill { height: 100%; background: var(--accent); width: 0%; transition: width 0.2s; }
+  .link { color: var(--accent); text-decoration: none; word-break: break-all; }
+  .error-text { color: var(--err); }
+  .retry-btn { padding: 4px 8px; font-size: 11px; }
+  #settingsModal {
+    position: fixed; inset: 0; background: rgba(0,0,0,0.5);
+    display: none; align-items: center; justify-content: center;
+  }
+  #settingsModal.open { display: flex; }
+  .modal-box {
+    background: var(--panel); border: 1px solid var(--border); border-radius: 10px;
+    padding: 20px; width: 420px; display: flex; flex-direction: column; gap: 12px;
+  }
+  .modal-box h2 { margin: 0 0 4px 0; font-size: 15px; }
+  .field { display: flex; flex-direction: column; gap: 4px; }
+  .field label { color: var(--muted); font-size: 12px; }
+  .field input {
+    padding: 8px 10px; background: #14161c; border: 1px solid var(--border);
+    border-radius: 6px; color: var(--text); font-size: 13px;
+  }
+  .modal-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 8px; }
+  .empty-state { color: var(--muted); text-align: center; padding: 30px; }
+  .summary { color: var(--muted); font-size: 12px; }
+</style>
+</head>
+<body>
+<header>
+  <h1>VoidZone Uploader — DoodStream / EarnVid</h1>
+  <button class="secondary" id="settingsBtn">API Keys</button>
+</header>
+
+<main>
+  <div class="toolbar">
+    <button id="pickFolderBtn">Choose Folder</button>
+    <div class="folder-path" id="folderPath">No folder selected</div>
+    <div class="providers">
+      <label><input type="checkbox" id="useDoodstream" checked /> DoodStream</label>
+      <label><input type="checkbox" id="useEarnvid" /> EarnVid</label>
+    </div>
+    <button id="startBtn" disabled>Start Upload</button>
+    <button class="secondary" id="copyLinksBtn" disabled>Copy All Links</button>
+  </div>
+
+  <div class="summary" id="summary"></div>
+
+  <div id="tableWrap">
+    <div class="empty-state" id="emptyState">Pick a folder containing episode video files (mp4, mkv, avi, mov, webm) to begin.</div>
+  </div>
+</main>
+
+<div id="settingsModal">
+  <div class="modal-box">
+    <h2>API Keys</h2>
+    <div class="field">
+      <label>DoodStream API key</label>
+      <input type="password" id="doodKeyInput" placeholder="Paste your DoodStream API key" />
+    </div>
+    <div class="field">
+      <label>EarnVid API key</label>
+      <input type="password" id="earnKeyInput" placeholder="Paste your EarnVid API key" />
+    </div>
+    <div class="modal-actions">
+      <button class="secondary" id="closeSettingsBtn">Cancel</button>
+      <button id="saveSettingsBtn">Save</button>
+    </div>
+  </div>
+</div>
+
+<script src="renderer.js"></script>
+</body>
+</html>
