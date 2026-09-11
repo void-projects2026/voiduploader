@@ -1,6 +1,6 @@
 {
   "name": "doodstream-uploader",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "voidzone internal tool: bulk upload anime episode video files to DoodStream / EarnVid",
   "main": "src/main.js",
   "author": "voidzone",
