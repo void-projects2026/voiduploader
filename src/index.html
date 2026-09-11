@@ -97,17 +97,39 @@
   .modal-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 8px; }
   .empty-state { color: var(--muted); text-align: center; padding: 30px; }
   .summary { color: var(--muted); font-size: 12px; }
+  .test-result { font-size: 12px; margin-top: -4px; }
+  .test-result.ok { color: var(--ok); }
+  .test-result.fail { color: var(--err); }
+  .key-row { display: flex; gap: 8px; align-items: center; }
+  .key-row input { flex: 1; }
+  .test-link-btn { padding: 2px 6px; font-size: 11px; }
+  .link-test-result { font-size: 11px; }
+  .link-test-result.ok { color: var(--ok); }
+  .link-test-result.fail { color: var(--err); }
+  .muted { color: var(--muted); }
+  #historyModal { position: fixed; inset: 0; background: rgba(0,0,0,0.5); display: none; align-items: center; justify-content: center; }
+  #historyModal.open { display: flex; }
+  .history-box { background: var(--panel); border: 1px solid var(--border); border-radius: 10px; padding: 20px; width: 640px; max-height: 70vh; display: flex; flex-direction: column; gap: 12px; }
+  .history-box h2 { margin: 0; font-size: 15px; display: flex; justify-content: space-between; align-items: center; }
+  #historyList { overflow-y: auto; flex: 1; display: flex; flex-direction: column; gap: 10px; }
+  .history-batch { border: 1px solid var(--border); border-radius: 6px; padding: 10px; }
+  .history-batch-header { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-bottom: 6px; }
+  .history-files { margin: 0; padding-left: 18px; font-size: 12px; display: flex; flex-direction: column; gap: 4px; }
 </style>
 </head>
 <body>
 <header>
   <h1>VoidZone Uploader — DoodStream / EarnVid</h1>
-  <button class="secondary" id="settingsBtn">API Keys</button>
+  <div style="display:flex; gap:8px;">
+    <button class="secondary" id="historyBtn">History</button>
+    <button class="secondary" id="settingsBtn">API Keys</button>
+  </div>
 </header>
 
 <main>
   <div class="toolbar">
     <button id="pickFolderBtn">Choose Folder</button>
+    <button class="secondary" id="newFolderBtn">New Folder</button>
     <div class="folder-path" id="folderPath">No folder selected</div>
     <div class="providers">
       <label><input type="checkbox" id="useDoodstream" checked /> DoodStream</label>
@@ -129,16 +151,31 @@
     <h2>API Keys</h2>
     <div class="field">
       <label>DoodStream API key</label>
-      <input type="password" id="doodKeyInput" placeholder="Paste your DoodStream API key" />
+      <div class="key-row">
+        <input type="password" id="doodKeyInput" placeholder="Paste your DoodStream API key" />
+        <button class="secondary" id="testDoodBtn">Test</button>
+      </div>
+      <div class="test-result" id="doodTestResult"></div>
     </div>
     <div class="field">
       <label>EarnVid API key</label>
-      <input type="password" id="earnKeyInput" placeholder="Paste your EarnVid API key" />
+      <div class="key-row">
+        <input type="password" id="earnKeyInput" placeholder="Paste your EarnVid API key" />
+        <button class="secondary" id="testEarnBtn">Test</button>
+      </div>
+      <div class="test-result" id="earnTestResult"></div>
     </div>
     <div class="modal-actions">
       <button class="secondary" id="closeSettingsBtn">Cancel</button>
       <button id="saveSettingsBtn">Save</button>
     </div>
+  </div>
+</div>
+
+<div id="historyModal">
+  <div class="history-box">
+    <h2>Upload History <button class="secondary" id="closeHistoryBtn">Close</button></h2>
+    <div id="historyList"></div>
   </div>
 </div>
 

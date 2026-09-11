@@ -1,6 +1,14 @@
 let currentFolder = null;
-let queue = []; // { id, name, path, size, providers: { doodstream: {status, pct, url, error}, earnvid: {...} } }
+let currentBatchId = null;
+let queue = []; // { id, name, path, size, providers: { doodstream: {status, pct, url, error, speed}, earnvid: {...} } }
 let idCounter = 0;
+
+function fmtSpeed(bytesPerSec) {
+  if (!bytesPerSec || bytesPerSec <= 0) return '';
+  const mb = bytesPerSec / (1024 * 1024);
+  if (mb >= 1) return mb.toFixed(1) + ' MB/s';
+  return (bytesPerSec / 1024).toFixed(0) + ' KB/s';
+}
 
 const folderPathEl = document.getElementById('folderPath');
 const tableWrap = document.getElementById('tableWrap');
@@ -40,9 +48,10 @@ function renderTable() {
       html += '<td><div class="status">';
       html += `<span class="badge ${st.status}">${st.status}</span>`;
       if (st.status === 'uploading') {
-        html += `<div class="progress-bar" style="width:80px"><div class="progress-fill" style="width:${st.pct}%"></div></div><span>${st.pct}%</span>`;
+        const speedTxt = fmtSpeed(st.speed);
+        html += `<div class="progress-bar" style="width:80px"><div class="progress-fill" style="width:${st.pct}%"></div></div><span>${st.pct}%${speedTxt ? ' · ' + speedTxt : ''}</span>`;
       } else if (st.status === 'done') {
-        html += `<a class="link" href="#" data-copy="${st.url}">${st.url}</a>`;
+        html += `<a class="link" href="#" data-copy="${st.url}">${st.url}</a> <button class="test-link-btn" data-test="${st.url}">Test</button><span class="link-test-result" data-testresult="${st.url}"></span>`;
       } else if (st.status === 'failed') {
         html += `<span class="error-text">${st.error || 'failed'}</span><button class="retry-btn" data-retry="${item.id}" data-provider="${p}">Retry</button>`;
       }
@@ -63,6 +72,18 @@ function renderTable() {
     el.addEventListener('click', () => {
       const item = queue.find((q) => q.id == el.dataset.retry);
       uploadItemProvider(item, el.dataset.provider);
+    });
+  });
+  tableWrap.querySelectorAll('[data-test]').forEach((el) => {
+    el.addEventListener('click', async () => {
+      const url = el.dataset.test;
+      const resultEl = tableWrap.querySelector(`[data-testresult="${CSS.escape(url)}"]`);
+      if (resultEl) resultEl.textContent = 'testing...';
+      const res = await window.api.testLink(url);
+      if (resultEl) {
+        resultEl.textContent = res.success ? `OK (${res.status || 200})` : `FAIL (${res.error || res.status || 'unreachable'})`;
+        resultEl.className = 'link-test-result ' + (res.success ? 'ok' : 'fail');
+      }
     });
   });
 
@@ -95,10 +116,14 @@ document.getElementById('pickFolderBtn').addEventListener('click', async () => {
   const files = await window.api.scanFolder(folder);
   queue = files.map((f) => {
     const providers = {};
-    for (const p of activeProviders()) providers[p] = { status: 'queued', pct: 0, url: '', error: '' };
+    for (const p of activeProviders()) providers[p] = { status: 'queued', pct: 0, url: '', error: '', speed: 0 };
     return { id: idCounter++, name: f.name, path: f.path, size: f.size, providers };
   });
   startBtn.disabled = queue.length === 0;
+
+  const batch = await window.api.addHistoryBatch({ folderPath: folder });
+  currentBatchId = batch && batch.id;
+
   renderTable();
 });
 
@@ -114,13 +139,22 @@ document.getElementById('pickFolderBtn').addEventListener('click', async () => {
 });
 
 async function uploadItemProvider(item, provider) {
-  item.providers[provider] = { status: 'uploading', pct: 0, url: '', error: '' };
+  item.providers[provider] = { status: 'uploading', pct: 0, url: '', error: '', speed: 0 };
   renderTable();
   const res = await window.api.uploadFile({ provider, filePath: item.path, id: item.id });
   if (res.success) {
-    item.providers[provider] = { status: 'done', pct: 100, url: res.embedUrl, error: '' };
+    item.providers[provider] = { status: 'done', pct: 100, url: res.embedUrl, error: '', speed: 0 };
+    if (currentBatchId) {
+      window.api.recordHistoryLink({
+        batchId: currentBatchId,
+        fileName: item.name,
+        size: item.size,
+        provider,
+        url: res.embedUrl
+      });
+    }
   } else {
-    item.providers[provider] = { status: 'failed', pct: 0, url: '', error: res.error };
+    item.providers[provider] = { status: 'failed', pct: 0, url: '', error: res.error, speed: 0 };
   }
   renderTable();
 }
@@ -150,10 +184,11 @@ copyLinksBtn.addEventListener('click', () => {
   navigator.clipboard.writeText(lines.join('\n'));
 });
 
-window.api.onProgress(({ id, provider, pct }) => {
+window.api.onProgress(({ id, provider, pct, bytesPerSec }) => {
   const item = queue.find((q) => q.id === id);
   if (!item || !item.providers[provider]) return;
   item.providers[provider].pct = pct;
+  item.providers[provider].speed = bytesPerSec || 0;
   renderTable();
 });
 
@@ -186,3 +221,113 @@ document.getElementById('saveSettingsBtn').addEventListener('click', async () =>
   const cfg = await window.api.getConfig();
   if (!cfg.doodstreamApiKey && !cfg.earnvidApiKey) openSettings();
 })();
+
+// ---------------------------------------------------------------------------
+// Test Connection (item 3)
+// ---------------------------------------------------------------------------
+const testDoodBtn = document.getElementById('testDoodBtn');
+const testEarnBtn = document.getElementById('testEarnBtn');
+const doodTestResult = document.getElementById('doodTestResult');
+const earnTestResult = document.getElementById('earnTestResult');
+
+async function testConnection(provider, keyInput, resultEl) {
+  resultEl.textContent = 'Testing...';
+  resultEl.className = 'test-result';
+  const res = await window.api.testConnection({ provider, apiKey: keyInput.value.trim() });
+  if (res.success) {
+    const acct = res.account || {};
+    resultEl.textContent = `Valid${acct.email ? ' — ' + acct.email : ''}${acct.balance ? ' — balance ' + acct.balance : ''}`;
+    resultEl.className = 'test-result ok';
+  } else {
+    resultEl.textContent = 'Invalid: ' + (res.error || 'unknown error');
+    resultEl.className = 'test-result fail';
+  }
+}
+
+if (testDoodBtn) testDoodBtn.addEventListener('click', () => testConnection('doodstream', doodKeyInput, doodTestResult));
+if (testEarnBtn) testEarnBtn.addEventListener('click', () => testConnection('earnvid', earnKeyInput, earnTestResult));
+
+// ---------------------------------------------------------------------------
+// Create Folder (item 6)
+// ---------------------------------------------------------------------------
+const newFolderBtn = document.getElementById('newFolderBtn');
+if (newFolderBtn) {
+  newFolderBtn.addEventListener('click', async () => {
+    const name = prompt('New folder name (e.g. a series/work title):');
+    if (!name) return;
+    const res = await window.api.createFolder({ name });
+    if (res.success) {
+      alert(`Created: ${res.path}`);
+      // Immediately switch to the newly-created folder so uploads can be
+      // dropped in and then picked up via "Choose Folder".
+      currentFolder = res.path;
+      folderPathEl.textContent = res.path;
+      folderPathEl.title = res.path;
+    } else {
+      alert('Could not create folder: ' + res.error);
+    }
+  });
+}
+
+// ---------------------------------------------------------------------------
+// Upload History (item 5)
+// ---------------------------------------------------------------------------
+const historyModal = document.getElementById('historyModal');
+const historyBtn = document.getElementById('historyBtn');
+const closeHistoryBtn = document.getElementById('closeHistoryBtn');
+const historyList = document.getElementById('historyList');
+
+function fmtDate(iso) {
+  try { return new Date(iso).toLocaleString(); } catch { return iso; }
+}
+
+async function renderHistory() {
+  const batches = await window.api.listHistory();
+  if (!batches.length) {
+    historyList.innerHTML = '<div class="empty-state">No upload history yet.</div>';
+    return;
+  }
+  let html = '';
+  for (const batch of batches) {
+    html += `<div class="history-batch">`;
+    html += `<div class="history-batch-header"><strong>${batch.folderName}</strong> <span class="muted">${fmtDate(batch.createdAt)}</span> <span class="muted">(${batch.files.length} file${batch.files.length === 1 ? '' : 's'})</span>`;
+    html += ` <button class="secondary copy-batch-btn" data-batch="${batch.id}">Copy all links</button></div>`;
+    if (batch.files.length) {
+      html += '<ul class="history-files">';
+      for (const f of batch.files) {
+        const linkParts = Object.entries(f.links || {}).map(([p, u]) => `<a class="link" href="#" data-copy="${u}">${p}: ${u}</a>`).join('<br>');
+        html += `<li>${f.name} — ${linkParts || '<span class="muted">no links</span>'}</li>`;
+      }
+      html += '</ul>';
+    }
+    html += '</div>';
+  }
+  historyList.innerHTML = html;
+
+  historyList.querySelectorAll('[data-copy]').forEach((el) => {
+    el.addEventListener('click', (e) => {
+      e.preventDefault();
+      navigator.clipboard.writeText(el.dataset.copy);
+    });
+  });
+  historyList.querySelectorAll('.copy-batch-btn').forEach((el) => {
+    el.addEventListener('click', async () => {
+      const batches = await window.api.listHistory();
+      const batch = batches.find((b) => b.id === el.dataset.batch);
+      if (!batch) return;
+      const lines = [];
+      for (const f of batch.files) {
+        for (const url of Object.values(f.links || {})) lines.push(url);
+      }
+      navigator.clipboard.writeText(lines.join('\n'));
+    });
+  });
+}
+
+if (historyBtn) {
+  historyBtn.addEventListener('click', async () => {
+    await renderHistory();
+    historyModal.classList.add('open');
+  });
+}
+if (closeHistoryBtn) closeHistoryBtn.addEventListener('click', () => historyModal.classList.remove('open'));
