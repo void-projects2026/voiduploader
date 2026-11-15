@@ -7,6 +7,7 @@ contextBridge.exposeInMainWorld('api', {
 
   searchAnimeWorks: (q) => ipcRenderer.invoke('anime:searchWorks', q),
   anilistSearch: (q) => ipcRenderer.invoke('anime:anilistSearch', q),
+  anilistTranslatePreview: (payload) => ipcRenderer.invoke('anime:anilistTranslatePreview', payload),
   anilistCreate: (payload) => ipcRenderer.invoke('anime:anilistCreate', payload),
   listEpisodes: (animeId) => ipcRenderer.invoke('anime:listEpisodes', animeId),
 

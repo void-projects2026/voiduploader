@@ -83,6 +83,21 @@ async function anilistSearch(accessToken, q) {
   return { success: true, results: data?.results || data?.items || data || [] };
 }
 
+// Matches the website admin panel's own "إنشاء عمل من AniList" preview step
+// (src/lib/animeHostUpload.ts: translateAnilistPreview) - called right after
+// a search result is picked, before the admin confirms creation, so the
+// Arabic synopsis/genres/tags shown for review are real translations, not
+// placeholders.
+async function anilistTranslatePreview(accessToken, { descriptionEn, genres, tags }) {
+  const { ok, data } = await jsonFetch(`${SITE_URL}/api/cache/uploader/anime/anilist-translate-preview`, {
+    method: 'POST',
+    headers: authHeaders(accessToken),
+    body: JSON.stringify({ descriptionEn, genres, tags }),
+  });
+  if (!ok) return { success: false, error: data?.error || 'فشلت الترجمة' };
+  return { success: true, synopsisAr: data?.synopsisAr || '', genresAr: data?.genresAr || [], tagsAr: data?.tagsAr || [] };
+}
+
 async function anilistCreate(accessToken, payload) {
   const { ok, data } = await jsonFetch(`${SITE_URL}/api/cache/uploader/anime/anilist-create`, {
     method: 'POST',
@@ -90,7 +105,7 @@ async function anilistCreate(accessToken, payload) {
     body: JSON.stringify(payload),
   });
   if (!ok) return { success: false, error: data?.error || 'فشل إنشاء العمل' };
-  return { success: true, work: data?.work || data };
+  return { success: true, id: data?.id, episodesCreated: data?.episodesCreated };
 }
 
 async function listEpisodes(accessToken, animeId) {
@@ -143,6 +158,7 @@ module.exports = {
   refreshSession,
   searchAnimeWorks,
   anilistSearch,
+  anilistTranslatePreview,
   anilistCreate,
   listEpisodes,
   createEpisode,

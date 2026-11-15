@@ -111,6 +111,7 @@ function currentToken() {
 // ---------------------------------------------------------------------------
 ipcMain.handle('anime:searchWorks', (_e, q) => site.searchAnimeWorks(currentToken(), q));
 ipcMain.handle('anime:anilistSearch', (_e, q) => site.anilistSearch(currentToken(), q));
+ipcMain.handle('anime:anilistTranslatePreview', (_e, payload) => site.anilistTranslatePreview(currentToken(), payload));
 ipcMain.handle('anime:anilistCreate', (_e, payload) => site.anilistCreate(currentToken(), payload));
 ipcMain.handle('anime:listEpisodes', (_e, animeId) => site.listEpisodes(currentToken(), animeId));
 ipcMain.handle('anime:createEpisode', (_e, payload) => site.createEpisode(currentToken(), payload));

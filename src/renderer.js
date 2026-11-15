@@ -103,19 +103,73 @@ $('anilist-search-btn').addEventListener('click', async () => {
   });
 });
 
-$('anilist-create-btn').addEventListener('click', async () => {
+let reviewDraft = null; // the AniList result currently being reviewed before create
+
+$('anilist-preview-btn').addEventListener('click', async () => {
   const select = $('anilist-results');
   const idx = select.value;
-  if (idx === '') return;
+  if (idx === '') return alert('اختر نتيجة من القائمة أولاً');
   const chosen = anilistResultsCache[idx];
-  const result = await window.api.anilistCreate(chosen);
-  if (!result.success) {
-    alert(result.error || 'فشل الإنشاء');
-    return;
-  }
-  selectedWork = { id: result.work.id, title: result.work.title_ar || result.work.title };
+  $('anilist-preview-btn').disabled = true;
+  const translated = await window.api.anilistTranslatePreview({
+    descriptionEn: chosen.descriptionEn,
+    genres: chosen.genres,
+    tags: chosen.tags,
+  });
+  $('anilist-preview-btn').disabled = false;
+  if (!translated.success) return alert(translated.error || 'فشلت الترجمة');
+
+  // Mirrors the website's own AniList-create flow: the translated Arabic
+  // genres/tags REPLACE the English ones before create (anilist-create's
+  // body sends `genres`/`tags`, not separate *Ar fields - see
+  // src/lib/animeHostUpload.ts createAnimeFromAnilist on the main site).
+  reviewDraft = {
+    ...chosen,
+    genres: translated.genresAr.length ? translated.genresAr : chosen.genres,
+    tags: translated.tagsAr.length ? translated.tagsAr : chosen.tags,
+    synopsisAr: translated.synopsisAr,
+  };
+  $('review-title-ar').value = chosen.titleRomaji || chosen.titleEnglish || '';
+  $('review-synopsis-ar').value = translated.synopsisAr || '';
+  $('review-genres-ar').value = reviewDraft.genres.join('، ');
+  $('review-tags-ar').value = reviewDraft.tags.join('، ');
+  $('anilist-review').style.display = 'block';
+});
+
+$('anilist-cancel-review-btn').addEventListener('click', () => {
+  reviewDraft = null;
+  $('anilist-review').style.display = 'none';
+});
+
+$('anilist-confirm-create-btn').addEventListener('click', async () => {
+  if (!reviewDraft) return;
+  const titleAr = $('review-title-ar').value.trim();
+  if (!titleAr) return alert('أدخل الاسم بالعربي');
+  const payload = {
+    anilistId: reviewDraft.anilistId,
+    titleAr,
+    titleRomaji: reviewDraft.titleRomaji,
+    titleEnglish: reviewDraft.titleEnglish,
+    coverUrl: reviewDraft.coverUrl,
+    descriptionEn: reviewDraft.descriptionEn,
+    synopsisAr: $('review-synopsis-ar').value.trim(),
+    genres: $('review-genres-ar').value.split('،').map((s) => s.trim()).filter(Boolean),
+    tags: $('review-tags-ar').value.split('،').map((s) => s.trim()).filter(Boolean),
+    status: reviewDraft.status,
+    episodesCount: reviewDraft.episodesCount,
+    releaseYear: reviewDraft.releaseYear,
+    studio: reviewDraft.studio,
+    format: reviewDraft.format,
+  };
+  $('anilist-confirm-create-btn').disabled = true;
+  const result = await window.api.anilistCreate(payload);
+  $('anilist-confirm-create-btn').disabled = false;
+  if (!result.success) return alert(result.error || 'فشل الإنشاء');
+  selectedWork = { id: result.id, title: titleAr };
   $('selected-work-label').textContent = `${selectedWork.title} (${selectedWork.id})`;
-  alert('تم إنشاء العمل بنجاح');
+  $('anilist-review').style.display = 'none';
+  reviewDraft = null;
+  alert(`تم إنشاء العمل بنجاح (${result.episodesCreated || 0} حلقة VIP تلقائية)`);
 });
 
 // ---------------------------------------------------------------------------

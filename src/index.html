@@ -118,7 +118,19 @@
         </div>
         <select id="anilist-results" style="width:100%" size="6"></select>
         <div class="row" style="margin-top:10px">
-          <button id="anilist-create-btn">إنشاء العمل المحدد</button>
+          <button id="anilist-preview-btn" class="secondary">عرض ومراجعة قبل الإنشاء</button>
+        </div>
+
+        <div id="anilist-review" style="display:none; margin-top:16px; background:#131722; border:1px solid #222838; border-radius:10px; padding:16px;">
+          <h3 style="margin-top:0">مراجعة قبل الإنشاء</h3>
+          <div class="field"><label>الاسم بالعربي</label><input id="review-title-ar" /></div>
+          <div class="field"><label>القصة (مترجمة، قابلة للتعديل)</label><textarea id="review-synopsis-ar" rows="5" style="width:100%;padding:10px;border-radius:8px;border:1px solid #2a3142;background:#0f131b;color:#e6e8ec;"></textarea></div>
+          <div class="field"><label>التصنيفات (مفصولة بفاصلة)</label><input id="review-genres-ar" /></div>
+          <div class="field"><label>الوسوم (مفصولة بفاصلة)</label><input id="review-tags-ar" /></div>
+          <div class="row">
+            <button id="anilist-confirm-create-btn">تأكيد الإنشاء</button>
+            <button id="anilist-cancel-review-btn" class="secondary">إلغاء</button>
+          </div>
         </div>
         <div class="hint">الإنشاء اليدوي الكامل (بدون AniList) غير متاح في هذه النسخة الأولى — قريباً.</div>
       </div>
