@@ -106,12 +106,8 @@
     <div id="main">
       <div class="panel active" id="panel-anime">
         <h2>الأنمي</h2>
-        <div class="row">
-          <input id="work-search" placeholder="بحث عن عمل موجود..." style="flex:1" />
-          <button id="work-search-btn" class="secondary">بحث</button>
-        </div>
-        <select id="work-results" style="width:100%" size="6"></select>
-        <h3 style="margin-top:28px">إنشاء عمل جديد عبر AniList</h3>
+        <div class="hint">البحث عن عمل موجود واختياره انتقل لتاب "الرفع" — هنا فقط إنشاء عمل جديد عبر AniList.</div>
+        <h3 style="margin-top:20px">إنشاء عمل جديد عبر AniList</h3>
         <div class="row">
           <input id="anilist-search" placeholder="اسم الأنمي بالإنجليزية..." style="flex:1" />
           <button id="anilist-search-btn" class="secondary">بحث AniList</button>
@@ -138,8 +134,13 @@
       <div class="panel" id="panel-upload">
         <h2>الرفع</h2>
         <div class="row">
+          <input id="work-search" placeholder="بحث عن عمل موجود للرفع عليه..." style="flex:1" />
+          <button id="work-search-btn" class="secondary">بحث</button>
+        </div>
+        <select id="work-results" style="width:100%" size="5"></select>
+        <div class="row">
           <span>العمل المختار:</span>
-          <b id="selected-work-label">لم يتم اختيار عمل من تاب "الأنمي"</b>
+          <b id="selected-work-label">لم يتم اختيار عمل</b>
         </div>
         <div class="checklist row" id="host-checklist">
           <label><input type="checkbox" value="earnvid" checked /> EarnVid</label>
