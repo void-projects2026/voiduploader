@@ -1,20 +1,27 @@
 const { contextBridge, ipcRenderer } = require('electron');
 
 contextBridge.exposeInMainWorld('api', {
+  login: (email, password) => ipcRenderer.invoke('auth:login', { email, password }),
+  getSession: () => ipcRenderer.invoke('auth:getSession'),
+  logout: () => ipcRenderer.invoke('auth:logout'),
+
+  searchAnimeWorks: (q) => ipcRenderer.invoke('anime:searchWorks', q),
+  anilistSearch: (q) => ipcRenderer.invoke('anime:anilistSearch', q),
+  anilistCreate: (payload) => ipcRenderer.invoke('anime:anilistCreate', payload),
+  listEpisodes: (animeId) => ipcRenderer.invoke('anime:listEpisodes', animeId),
+
   getConfig: () => ipcRenderer.invoke('config:get'),
   setConfig: (cfg) => ipcRenderer.invoke('config:set', cfg),
-  pickFolder: () => ipcRenderer.invoke('folder:pick'),
-  scanFolder: (folderPath) => ipcRenderer.invoke('folder:scan', folderPath),
-  uploadFile: (payload) => ipcRenderer.invoke('upload:file', payload),
-  onProgress: (callback) => {
-    ipcRenderer.on('upload:progress', (_event, data) => callback(data));
+
+  pickFile: () => ipcRenderer.invoke('file:pick'),
+  pickAndScanFolder: () => ipcRenderer.invoke('folder:pickAndScan'),
+
+  checkEpisode: (payload) => ipcRenderer.invoke('upload:checkEpisode', payload),
+  queueEpisodeUpload: (payload) => ipcRenderer.invoke('upload:queueEpisode', payload),
+
+  listOps: () => ipcRenderer.invoke('ops:list'),
+  retryHost: (payload) => ipcRenderer.invoke('ops:retryHost', payload),
+  onOpsUpdated: (callback) => {
+    ipcRenderer.on('ops:updated', (_event, jobs) => callback(jobs));
   },
-  testConnection: (payload) => ipcRenderer.invoke('provider:test', payload),
-  testLink: (url) => ipcRenderer.invoke('link:test', url),
-  createFolder: (payload) => ipcRenderer.invoke('folder:create', payload),
-  addHistoryBatch: (payload) => ipcRenderer.invoke('history:addBatch', payload),
-  recordHistoryLink: (payload) => ipcRenderer.invoke('history:recordLink', payload),
-  listHistory: () => ipcRenderer.invoke('history:list'),
-  clearHistory: () => ipcRenderer.invoke('history:clear'),
-  writeClipboard: (text) => ipcRenderer.invoke('clipboard:write', text)
 });

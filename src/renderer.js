@@ -1,333 +1,295 @@
-let currentFolder = null;
-let currentBatchId = null;
-let queue = []; // { id, name, path, size, providers: { doodstream: {status, pct, url, error, speed}, earnvid: {...} } }
-let idCounter = 0;
+const HOST_LABEL = { earnvid: 'EarnVid', doodstream: 'Doodstream', voe: 'Voe' };
 
-function fmtSpeed(bytesPerSec) {
-  if (!bytesPerSec || bytesPerSec <= 0) return '';
-  const mb = bytesPerSec / (1024 * 1024);
-  if (mb >= 1) return mb.toFixed(1) + ' MB/s';
-  return (bytesPerSec / 1024).toFixed(0) + ' KB/s';
+let selectedWork = null; // { id, title }
+let anilistResultsCache = [];
+let bulkFiles = [];
+
+const $ = (id) => document.getElementById(id);
+
+function showApp() {
+  $('login-screen').style.display = 'none';
+  $('app').classList.add('visible');
 }
 
-const folderPathEl = document.getElementById('folderPath');
-const tableWrap = document.getElementById('tableWrap');
-const emptyState = document.getElementById('emptyState');
-const startBtn = document.getElementById('startBtn');
-const copyLinksBtn = document.getElementById('copyLinksBtn');
-const summaryEl = document.getElementById('summary');
-
-function fmtSize(bytes) {
-  if (bytes > 1024 * 1024 * 1024) return (bytes / (1024 * 1024 * 1024)).toFixed(2) + ' GB';
-  return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
+function showLogin() {
+  $('login-screen').style.display = 'flex';
+  $('app').classList.remove('visible');
 }
 
-function activeProviders() {
-  const list = [];
-  if (document.getElementById('useDoodstream').checked) list.push('doodstream');
-  if (document.getElementById('useEarnvid').checked) list.push('earnvid');
-  return list;
-}
-
-function renderTable() {
-  if (!queue.length) {
-    tableWrap.innerHTML = '';
-    tableWrap.appendChild(emptyState);
-    return;
-  }
-  const providers = activeProviders().length ? activeProviders() : Object.keys(queue[0].providers);
-  let html = '<table><thead><tr><th>File</th><th>Size</th>';
-  for (const p of providers) html += `<th>${p}</th>`;
-  html += '</tr></thead><tbody>';
-
-  for (const item of queue) {
-    html += `<tr><td>${item.name}</td><td>${fmtSize(item.size)}</td>`;
-    for (const p of providers) {
-      const st = item.providers[p];
-      if (!st) { html += '<td>-</td>'; continue; }
-      html += '<td><div class="status">';
-      html += `<span class="badge ${st.status}">${st.status}</span>`;
-      if (st.status === 'uploading') {
-        const speedTxt = fmtSpeed(st.speed);
-        html += `<div class="progress-bar" style="width:80px"><div class="progress-fill" style="width:${st.pct}%"></div></div><span>${st.pct}%${speedTxt ? ' · ' + speedTxt : ''}</span>`;
-      } else if (st.status === 'done') {
-        html += `<a class="link" href="#" data-copy="${st.url}">${st.url}</a> <button class="test-link-btn" data-test="${st.url}">Test</button><span class="link-test-result" data-testresult="${st.url}"></span>`;
-      } else if (st.status === 'failed') {
-        html += `<span class="error-text">${st.error || 'failed'}</span><button class="retry-btn" data-retry="${item.id}" data-provider="${p}">Retry</button>`;
-      }
-      html += '</div></td>';
-    }
-    html += '</tr>';
-  }
-  html += '</tbody></table>';
-  tableWrap.innerHTML = html;
-
-  tableWrap.querySelectorAll('[data-copy]').forEach((el) => {
-    el.addEventListener('click', (e) => {
-      e.preventDefault();
-      navigator.clipboard.writeText(el.dataset.copy);
-    });
-  });
-  tableWrap.querySelectorAll('[data-retry]').forEach((el) => {
-    el.addEventListener('click', () => {
-      const item = queue.find((q) => q.id == el.dataset.retry);
-      uploadItemProvider(item, el.dataset.provider);
-    });
-  });
-  tableWrap.querySelectorAll('[data-test]').forEach((el) => {
-    el.addEventListener('click', async () => {
-      const url = el.dataset.test;
-      const resultEl = tableWrap.querySelector(`[data-testresult="${CSS.escape(url)}"]`);
-      if (resultEl) resultEl.textContent = 'testing...';
-      const res = await window.api.testLink(url);
-      if (resultEl) {
-        resultEl.textContent = res.success ? `OK (${res.status || 200})` : `FAIL (${res.error || res.status || 'unreachable'})`;
-        resultEl.className = 'link-test-result ' + (res.success ? 'ok' : 'fail');
-      }
-    });
-  });
-
-  updateSummary();
-}
-
-function updateSummary() {
-  const providers = activeProviders();
-  let done = 0, total = 0, failed = 0;
-  for (const item of queue) {
-    for (const p of providers) {
-      const st = item.providers[p];
-      if (!st) continue;
-      total++;
-      if (st.status === 'done') done++;
-      if (st.status === 'failed') failed++;
-    }
-  }
-  summaryEl.textContent = total ? `${done}/${total} uploaded, ${failed} failed` : '';
-  copyLinksBtn.disabled = done === 0;
-}
-
-document.getElementById('pickFolderBtn').addEventListener('click', async () => {
-  const folder = await window.api.pickFolder();
-  if (!folder) return;
-  currentFolder = folder;
-  folderPathEl.textContent = folder;
-  folderPathEl.title = folder;
-
-  const files = await window.api.scanFolder(folder);
-  queue = files.map((f) => {
-    const providers = {};
-    for (const p of activeProviders()) providers[p] = { status: 'queued', pct: 0, url: '', error: '', speed: 0 };
-    return { id: idCounter++, name: f.name, path: f.path, size: f.size, providers };
-  });
-  startBtn.disabled = queue.length === 0;
-
-  const batch = await window.api.addHistoryBatch({ folderPath: folder });
-  currentBatchId = batch && batch.id;
-
-  renderTable();
-});
-
-['useDoodstream', 'useEarnvid'].forEach((id) => {
-  document.getElementById(id).addEventListener('change', () => {
-    for (const item of queue) {
-      for (const p of activeProviders()) {
-        if (!item.providers[p]) item.providers[p] = { status: 'queued', pct: 0, url: '', error: '' };
-      }
-    }
-    renderTable();
-  });
-});
-
-async function uploadItemProvider(item, provider) {
-  item.providers[provider] = { status: 'uploading', pct: 0, url: '', error: '', speed: 0 };
-  renderTable();
-  const res = await window.api.uploadFile({ provider, filePath: item.path, id: item.id });
-  if (res.success) {
-    item.providers[provider] = { status: 'done', pct: 100, url: res.embedUrl, error: '', speed: 0 };
-    if (currentBatchId) {
-      window.api.recordHistoryLink({
-        batchId: currentBatchId,
-        fileName: item.name,
-        size: item.size,
-        provider,
-        url: res.embedUrl
-      });
-    }
+async function boot() {
+  const session = await window.api.getSession();
+  if (session.loggedIn) {
+    $('who-label').textContent = `${session.profile.username || ''} (${session.profile.isAdmin ? 'أدمن' : 'مساعد أدمن'})`;
+    showApp();
+    refreshOps();
+    loadConfigIntoSettings();
   } else {
-    item.providers[provider] = { status: 'failed', pct: 0, url: '', error: res.error, speed: 0 };
+    showLogin();
   }
-  renderTable();
 }
 
-startBtn.addEventListener('click', async () => {
-  startBtn.disabled = true;
-  const providers = activeProviders();
-  if (!providers.length) {
-    alert('Select at least one provider (DoodStream or EarnVid).');
-    startBtn.disabled = false;
+$('login-btn').addEventListener('click', async () => {
+  const email = $('login-email').value.trim();
+  const password = $('login-password').value;
+  $('error-msg').textContent = '';
+  $('login-btn').disabled = true;
+  const result = await window.api.login(email, password);
+  $('login-btn').disabled = false;
+  if (!result.success) {
+    $('error-msg').textContent = result.error || 'فشل تسجيل الدخول';
     return;
   }
-  // Sequential per file (to keep progress readable and avoid hammering the API),
-  // but the two providers for a single file run in parallel.
-  for (const item of queue) {
-    await Promise.all(providers.map((p) => uploadItemProvider(item, p)));
+  $('who-label').textContent = `${result.profile.username || ''} (${result.profile.isAdmin ? 'أدمن' : 'مساعد أدمن'})`;
+  showApp();
+  refreshOps();
+  loadConfigIntoSettings();
+});
+
+$('logout-btn').addEventListener('click', async () => {
+  await window.api.logout();
+  showLogin();
+});
+
+// ---------------------------------------------------------------------------
+// Sidebar navigation
+// ---------------------------------------------------------------------------
+document.querySelectorAll('.nav-item').forEach((item) => {
+  item.addEventListener('click', () => {
+    document.querySelectorAll('.nav-item').forEach((i) => i.classList.remove('active'));
+    document.querySelectorAll('.panel').forEach((p) => p.classList.remove('active'));
+    item.classList.add('active');
+    $(`panel-${item.dataset.panel}`).classList.add('active');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Anime tab
+// ---------------------------------------------------------------------------
+$('work-search-btn').addEventListener('click', async () => {
+  const q = $('work-search').value.trim();
+  const result = await window.api.searchAnimeWorks(q);
+  const select = $('work-results');
+  select.innerHTML = '';
+  if (!result.success) return;
+  (result.works || []).forEach((w) => {
+    const opt = document.createElement('option');
+    opt.value = w.id;
+    opt.textContent = `${w.title_ar || w.title || w.title_en || w.id} (${w.id})`;
+    opt.dataset.title = w.title_ar || w.title || w.title_en || '';
+    select.appendChild(opt);
+  });
+});
+
+$('work-results').addEventListener('change', () => {
+  const select = $('work-results');
+  const opt = select.selectedOptions[0];
+  if (!opt) return;
+  selectedWork = { id: opt.value, title: opt.dataset.title };
+  $('selected-work-label').textContent = `${selectedWork.title} (${selectedWork.id})`;
+});
+
+$('anilist-search-btn').addEventListener('click', async () => {
+  const q = $('anilist-search').value.trim();
+  const result = await window.api.anilistSearch(q);
+  const select = $('anilist-results');
+  select.innerHTML = '';
+  if (!result.success) return;
+  anilistResultsCache = result.results || [];
+  anilistResultsCache.forEach((r, idx) => {
+    const opt = document.createElement('option');
+    opt.value = idx;
+    opt.textContent = `${r.title_ar || r.title || r.title_en} — ${r.episodesCount || r.episodes || '?'} حلقة`;
+    select.appendChild(opt);
+  });
+});
+
+$('anilist-create-btn').addEventListener('click', async () => {
+  const select = $('anilist-results');
+  const idx = select.value;
+  if (idx === '') return;
+  const chosen = anilistResultsCache[idx];
+  const result = await window.api.anilistCreate(chosen);
+  if (!result.success) {
+    alert(result.error || 'فشل الإنشاء');
+    return;
   }
-  startBtn.disabled = false;
-});
-
-copyLinksBtn.addEventListener('click', () => {
-  const providers = activeProviders();
-  const primary = providers[0];
-  const lines = queue
-    .filter((item) => item.providers[primary] && item.providers[primary].status === 'done')
-    .map((item) => item.providers[primary].url);
-  navigator.clipboard.writeText(lines.join('\n'));
-});
-
-window.api.onProgress(({ id, provider, pct, bytesPerSec }) => {
-  const item = queue.find((q) => q.id === id);
-  if (!item || !item.providers[provider]) return;
-  item.providers[provider].pct = pct;
-  item.providers[provider].speed = bytesPerSec || 0;
-  renderTable();
+  selectedWork = { id: result.work.id, title: result.work.title_ar || result.work.title };
+  $('selected-work-label').textContent = `${selectedWork.title} (${selectedWork.id})`;
+  alert('تم إنشاء العمل بنجاح');
 });
 
 // ---------------------------------------------------------------------------
-// Settings modal
+// Upload tab - single episode
 // ---------------------------------------------------------------------------
-const settingsModal = document.getElementById('settingsModal');
-const doodKeyInput = document.getElementById('doodKeyInput');
-const earnKeyInput = document.getElementById('earnKeyInput');
+let singleFilePath = null;
 
-async function openSettings() {
-  const cfg = await window.api.getConfig();
-  doodKeyInput.value = cfg.doodstreamApiKey || '';
-  earnKeyInput.value = cfg.earnvidApiKey || '';
-  settingsModal.classList.add('open');
+$('single-pick-btn').addEventListener('click', async () => {
+  const filePath = await window.api.pickFile();
+  if (!filePath) return;
+  singleFilePath = filePath;
+  $('single-file-label').textContent = filePath.split(/[\\/]/).pop();
+});
+
+function getSelectedHosts() {
+  return Array.from(document.querySelectorAll('#host-checklist input:checked')).map((i) => i.value);
 }
 
-document.getElementById('settingsBtn').addEventListener('click', openSettings);
-document.getElementById('closeSettingsBtn').addEventListener('click', () => settingsModal.classList.remove('open'));
-document.getElementById('saveSettingsBtn').addEventListener('click', async () => {
+$('single-upload-btn').addEventListener('click', async () => {
+  if (!selectedWork) return alert('اختر عملاً أولاً من تاب الأنمي');
+  const episodeNumber = Number($('single-ep-num').value);
+  if (!episodeNumber) return alert('أدخل رقم الحلقة');
+  if (!singleFilePath) return alert('اختر ملف الفيديو');
+  const hosts = getSelectedHosts();
+  if (!hosts.length) return alert('اختر استضافة واحدة على الأقل');
+
+  const check = await window.api.checkEpisode({ animeId: selectedWork.id, episodeNumber });
+  let effectiveHosts = hosts;
+  if (check.success && check.exists) {
+    const already = hosts.filter((h) => check.hostsPresent[h]);
+    if (already.length) {
+      const names = already.map((h) => HOST_LABEL[h]).join('، ');
+      const ok = confirm(`الحلقة ${episodeNumber} موجودة بالفعل على: ${names}. استبدال؟`);
+      if (!ok) effectiveHosts = hosts.filter((h) => !already.includes(h));
+    }
+  }
+  if (!effectiveHosts.length) return;
+
+  const result = await window.api.queueEpisodeUpload({
+    animeId: selectedWork.id,
+    animeTitle: selectedWork.title,
+    episodeNumber,
+    filePath: singleFilePath,
+    hosts: effectiveHosts,
+  });
+  if (!result.success) return alert(result.error || 'فشل بدء الرفع');
+  document.querySelector('.nav-item[data-panel="ops"]').click();
+  refreshOps();
+});
+
+// ---------------------------------------------------------------------------
+// Upload tab - bulk folder
+// ---------------------------------------------------------------------------
+$('bulk-pick-btn').addEventListener('click', async () => {
+  const result = await window.api.pickAndScanFolder();
+  if (!result) return;
+  bulkFiles = result.files;
+  renderBulkFileList();
+});
+
+function renderBulkFileList() {
+  const from = Number($('bulk-from').value) || 1;
+  const to = Number($('bulk-to').value) || 9999;
+  const container = $('bulk-file-list');
+  container.innerHTML = '';
+  bulkFiles
+    .filter((f) => f.guessedEpisode && f.guessedEpisode >= from && f.guessedEpisode <= to)
+    .forEach((f) => {
+      const div = document.createElement('div');
+      div.textContent = `حلقة ${f.guessedEpisode}: ${f.name}`;
+      container.appendChild(div);
+    });
+}
+
+$('bulk-from').addEventListener('input', renderBulkFileList);
+$('bulk-to').addEventListener('input', renderBulkFileList);
+
+$('bulk-upload-btn').addEventListener('click', async () => {
+  if (!selectedWork) return alert('اختر عملاً أولاً من تاب الأنمي');
+  const from = Number($('bulk-from').value) || 1;
+  const to = Number($('bulk-to').value) || 9999;
+  const hosts = getSelectedHosts();
+  if (!hosts.length) return alert('اختر استضافة واحدة على الأقل');
+  const matched = bulkFiles.filter((f) => f.guessedEpisode && f.guessedEpisode >= from && f.guessedEpisode <= to);
+  if (!matched.length) return alert('لا توجد ملفات مطابقة للنطاق');
+
+  for (const file of matched) {
+    const check = await window.api.checkEpisode({ animeId: selectedWork.id, episodeNumber: file.guessedEpisode });
+    let effectiveHosts = hosts;
+    if (check.success && check.exists) {
+      const already = hosts.filter((h) => check.hostsPresent[h]);
+      if (already.length) {
+        const names = already.map((h) => HOST_LABEL[h]).join('، ');
+        const ok = confirm(`الحلقة ${file.guessedEpisode} موجودة على: ${names}. استبدال؟ (إلغاء = تخطي هذه الاستضافات فقط)`);
+        if (!ok) effectiveHosts = hosts.filter((h) => !already.includes(h));
+      }
+    }
+    if (!effectiveHosts.length) continue;
+    await window.api.queueEpisodeUpload({
+      animeId: selectedWork.id,
+      animeTitle: selectedWork.title,
+      episodeNumber: file.guessedEpisode,
+      filePath: file.path,
+      hosts: effectiveHosts,
+    });
+  }
+  document.querySelector('.nav-item[data-panel="ops"]').click();
+  refreshOps();
+});
+
+// ---------------------------------------------------------------------------
+// Operations tab
+// ---------------------------------------------------------------------------
+async function refreshOps() {
+  const jobs = await window.api.listOps();
+  renderOps(jobs);
+}
+
+function renderOps(jobs) {
+  const tbody = $('ops-tbody');
+  tbody.innerHTML = '';
+  jobs.forEach((job) => {
+    const tr = document.createElement('tr');
+    const hostsHtml = job.hosts
+      .map((h) => {
+        const retryBtn = h.status === 'error' ? `<button data-job="${job.id}" data-host="${h.host}" class="retry-btn">إعادة</button>` : '';
+        return `<div class="host-cell">
+          <span class="name">${HOST_LABEL[h.host] || h.host}</span>
+          <span class="badge ${h.status}">${h.status}</span>
+          <span class="progress-bar"><div style="width:${h.progress || 0}%"></div></span>
+          <span class="hint">${h.progress || 0}%</span>
+          ${retryBtn}
+          ${h.error ? `<span class="hint" title="${h.error}">⚠</span>` : ''}
+        </div>`;
+      })
+      .join('');
+    tr.innerHTML = `
+      <td>${job.animeTitle || job.animeId}</td>
+      <td>${job.episodeNumber}</td>
+      <td>${job.fileName}</td>
+      <td>${hostsHtml}</td>
+    `;
+    tbody.appendChild(tr);
+  });
+  tbody.querySelectorAll('.retry-btn').forEach((btn) => {
+    btn.addEventListener('click', async () => {
+      await window.api.retryHost({ jobId: btn.dataset.job, host: btn.dataset.host });
+      refreshOps();
+    });
+  });
+}
+
+window.api.onOpsUpdated((jobs) => renderOps(jobs));
+
+// ---------------------------------------------------------------------------
+// Settings tab
+// ---------------------------------------------------------------------------
+async function loadConfigIntoSettings() {
+  const cfg = await window.api.getConfig();
+  $('cfg-earnvid').value = cfg.earnvidApiKey || '';
+  $('cfg-doodstream').value = cfg.doodstreamApiKey || '';
+  $('cfg-voe').value = cfg.voeApiKey || '';
+  $('cfg-concurrency').value = cfg.concurrency || 3;
+}
+
+$('cfg-save-btn').addEventListener('click', async () => {
   await window.api.setConfig({
-    doodstreamApiKey: doodKeyInput.value.trim(),
-    earnvidApiKey: earnKeyInput.value.trim()
+    earnvidApiKey: $('cfg-earnvid').value.trim(),
+    doodstreamApiKey: $('cfg-doodstream').value.trim(),
+    voeApiKey: $('cfg-voe').value.trim(),
+    concurrency: Number($('cfg-concurrency').value) || 3,
   });
-  settingsModal.classList.remove('open');
+  $('cfg-saved').textContent = 'تم الحفظ';
+  setTimeout(() => ($('cfg-saved').textContent = ''), 2000);
 });
 
-// First-run prompt: if no keys saved yet, open settings automatically.
-(async () => {
-  const cfg = await window.api.getConfig();
-  if (!cfg.doodstreamApiKey && !cfg.earnvidApiKey) openSettings();
-})();
-
-// ---------------------------------------------------------------------------
-// Test Connection (item 3)
-// ---------------------------------------------------------------------------
-const testDoodBtn = document.getElementById('testDoodBtn');
-const testEarnBtn = document.getElementById('testEarnBtn');
-const doodTestResult = document.getElementById('doodTestResult');
-const earnTestResult = document.getElementById('earnTestResult');
-
-async function testConnection(provider, keyInput, resultEl) {
-  resultEl.textContent = 'Testing...';
-  resultEl.className = 'test-result';
-  const res = await window.api.testConnection({ provider, apiKey: keyInput.value.trim() });
-  if (res.success) {
-    const acct = res.account || {};
-    resultEl.textContent = `Valid${acct.email ? ' — ' + acct.email : ''}${acct.balance ? ' — balance ' + acct.balance : ''}`;
-    resultEl.className = 'test-result ok';
-  } else {
-    resultEl.textContent = 'Invalid: ' + (res.error || 'unknown error');
-    resultEl.className = 'test-result fail';
-  }
-}
-
-if (testDoodBtn) testDoodBtn.addEventListener('click', () => testConnection('doodstream', doodKeyInput, doodTestResult));
-if (testEarnBtn) testEarnBtn.addEventListener('click', () => testConnection('earnvid', earnKeyInput, earnTestResult));
-
-// ---------------------------------------------------------------------------
-// Create Folder (item 6)
-// ---------------------------------------------------------------------------
-const newFolderBtn = document.getElementById('newFolderBtn');
-if (newFolderBtn) {
-  newFolderBtn.addEventListener('click', async () => {
-    const name = prompt('New folder name (e.g. a series/work title):');
-    if (!name) return;
-    const res = await window.api.createFolder({ name });
-    if (res.success) {
-      alert(`Created: ${res.path}`);
-      // Immediately switch to the newly-created folder so uploads can be
-      // dropped in and then picked up via "Choose Folder".
-      currentFolder = res.path;
-      folderPathEl.textContent = res.path;
-      folderPathEl.title = res.path;
-    } else {
-      alert('Could not create folder: ' + res.error);
-    }
-  });
-}
-
-// ---------------------------------------------------------------------------
-// Upload History (item 5)
-// ---------------------------------------------------------------------------
-const historyModal = document.getElementById('historyModal');
-const historyBtn = document.getElementById('historyBtn');
-const closeHistoryBtn = document.getElementById('closeHistoryBtn');
-const historyList = document.getElementById('historyList');
-
-function fmtDate(iso) {
-  try { return new Date(iso).toLocaleString(); } catch { return iso; }
-}
-
-async function renderHistory() {
-  const batches = await window.api.listHistory();
-  if (!batches.length) {
-    historyList.innerHTML = '<div class="empty-state">No upload history yet.</div>';
-    return;
-  }
-  let html = '';
-  for (const batch of batches) {
-    html += `<div class="history-batch">`;
-    html += `<div class="history-batch-header"><strong>${batch.folderName}</strong> <span class="muted">${fmtDate(batch.createdAt)}</span> <span class="muted">(${batch.files.length} file${batch.files.length === 1 ? '' : 's'})</span>`;
-    html += ` <button class="secondary copy-batch-btn" data-batch="${batch.id}">Copy all links</button></div>`;
-    if (batch.files.length) {
-      html += '<ul class="history-files">';
-      for (const f of batch.files) {
-        const linkParts = Object.entries(f.links || {}).map(([p, u]) => `<a class="link" href="#" data-copy="${u}">${p}: ${u}</a>`).join('<br>');
-        html += `<li>${f.name} — ${linkParts || '<span class="muted">no links</span>'}</li>`;
-      }
-      html += '</ul>';
-    }
-    html += '</div>';
-  }
-  historyList.innerHTML = html;
-
-  historyList.querySelectorAll('[data-copy]').forEach((el) => {
-    el.addEventListener('click', (e) => {
-      e.preventDefault();
-      navigator.clipboard.writeText(el.dataset.copy);
-    });
-  });
-  historyList.querySelectorAll('.copy-batch-btn').forEach((el) => {
-    el.addEventListener('click', async () => {
-      const batches = await window.api.listHistory();
-      const batch = batches.find((b) => b.id === el.dataset.batch);
-      if (!batch) return;
-      const lines = [];
-      for (const f of batch.files) {
-        for (const url of Object.values(f.links || {})) lines.push(url);
-      }
-      navigator.clipboard.writeText(lines.join('\n'));
-    });
-  });
-}
-
-if (historyBtn) {
-  historyBtn.addEventListener('click', async () => {
-    await renderHistory();
-    historyModal.classList.add('open');
-  });
-}
-if (closeHistoryBtn) closeHistoryBtn.addEventListener('click', () => historyModal.classList.remove('open'));
+boot();

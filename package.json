@@ -1,15 +1,16 @@
 {
-  "name": "doodstream-uploader",
-  "version": "1.1.0",
-  "description": "voidzone internal tool: bulk upload anime episode video files to DoodStream / EarnVid",
+  "name": "despair-downloader",
+  "version": "2.0.0",
+  "description": "Despair World desktop uploader: upload anime episodes to EarnVid / Doodstream / Voe in parallel, with auto-update.",
   "main": "src/main.js",
-  "author": "voidzone",
+  "author": "despair-world",
   "license": "UNLICENSED",
   "private": true,
   "scripts": {
     "start": "electron .",
     "dev": "electron . --dev",
-    "build": "electron-builder --win --publish never"
+    "build": "electron-builder --win --publish never",
+    "release": "electron-builder --win --publish always"
   },
   "devDependencies": {
     "electron": "^31.0.0",
@@ -17,12 +18,13 @@
   },
   "dependencies": {
     "electron-store": "^8.2.0",
+    "electron-updater": "^6.3.9",
     "axios": "^1.7.7",
     "form-data": "^4.0.0"
   },
   "build": {
-    "appId": "com.voidzone.doodstream-uploader",
-    "productName": "VoidZone Uploader",
+    "appId": "com.despairworld.downloader",
+    "productName": "Despair Downloader",
     "directories": {
       "output": "dist"
     },
@@ -32,6 +34,15 @@
     ],
     "win": {
       "target": "nsis"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true
+    },
+    "publish": {
+      "provider": "github",
+      "owner": "void-projects2026",
+      "repo": "voiduploader"
     }
   }
 }
