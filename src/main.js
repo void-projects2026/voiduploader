@@ -1,4 +1,4 @@
-const { app, BrowserWindow, ipcMain, dialog, Tray, Menu, nativeImage } = require('electron');
+const { app, BrowserWindow, ipcMain, dialog, Tray, Menu, nativeImage, shell } = require('electron');
 const path = require('path');
 const fs = require('fs');
 const { autoUpdater } = require('electron-updater');
@@ -9,6 +9,29 @@ const { sessionStore, configStore, listJobs, upsertJob, getJob } = require('./li
 const uploadManager = require('./lib/uploadManager');
 
 const VIDEO_EXTENSIONS = new Set(['.mp4', '.mkv', '.avi', '.mov', '.webm']);
+
+// Tried in priority order against the filename (without extension) - covers
+// the common release-naming conventions, not just "last number in the
+// name" (which broke on e.g. a 1080p/x264 tag being the last number).
+const EPISODE_PATTERNS = [
+  /s\d{1,2}[ ._-]?e(\d{1,4})/i, // S01E05 / S01.E05 / S1-E5
+  /\be(?:p(?:isode)?)?[ ._-]?(\d{1,4})\b/i, // Ep12 / Episode 12 / E12
+  /\[(\d{1,4})\]/, // [12]
+  /[ ._-](\d{1,4})[ ._-](?!.*[ ._-]\d)/, // " - 12 - " / "_12_" style, not followed by another separated number (avoids grabbing a resolution tag like 1080)
+  /(\d{1,4})(?!.*\d)/, // fallback: last number in the name
+];
+
+function guessEpisodeNumber(filename) {
+  const base = filename.replace(/\.[^.]+$/, '');
+  for (const re of EPISODE_PATTERNS) {
+    const m = base.match(re);
+    if (m) {
+      const n = Number(m[1]);
+      if (Number.isFinite(n) && n > 0 && n < 10000) return n;
+    }
+  }
+  return null;
+}
 
 let mainWindow;
 let tray;
@@ -190,6 +213,15 @@ ipcMain.handle('file:pick', async () => {
   return result.filePaths[0];
 });
 
+// Used for drag&drop drops (the renderer already has the real path via
+// preload's webUtils.getPathForFile) - just need the episode-number guess
+// and a basic video-extension sanity check back from the main process.
+ipcMain.handle('file:inspectDropped', (_e, filePath) => {
+  const name = path.basename(filePath);
+  const isVideo = VIDEO_EXTENSIONS.has(path.extname(name).toLowerCase());
+  return { isVideo, guessedEpisode: guessEpisodeNumber(name) };
+});
+
 ipcMain.handle('folder:pickAndScan', async () => {
   const result = await dialog.showOpenDialog(mainWindow, { properties: ['openDirectory'] });
   if (result.canceled || !result.filePaths.length) return null;
@@ -204,8 +236,7 @@ ipcMain.handle('folder:pickAndScan', async () => {
     folderPath,
     files: files.map((name) => {
       const full = path.join(folderPath, name);
-      const match = name.match(/(\d{1,4})(?!.*\d)/);
-      return { name, path: full, size: fs.statSync(full).size, guessedEpisode: match ? Number(match[1]) : null };
+      return { name, path: full, size: fs.statSync(full).size, guessedEpisode: guessEpisodeNumber(name) };
     }),
   };
 });
@@ -271,6 +302,41 @@ ipcMain.handle('ops:retryHost', async (_e, { jobId, host }) => {
     },
   });
   return { success: true };
+});
+
+ipcMain.handle('shell:openEpisode', (_e, { animeId, episodeNumber }) => {
+  shell.openExternal(`https://despair-world.com/series/anime/${encodeURIComponent(animeId)}/ep/${episodeNumber}`);
+});
+
+// A host left 'waiting'/'uploading' only ever means the app (or its
+// process) was closed/killed mid-transfer - there's no partial-byte resume
+// with these hosts' simple multipart APIs, so "resuming" means re-running
+// the whole upload from the file still sitting on disk. Called once, right
+// after the renderer confirms it has a logged-in session.
+ipcMain.handle('ops:resumeIncomplete', async () => {
+  const stuck = listJobs().filter((j) => j.hosts.some((h) => h.status === 'uploading' || h.status === 'waiting'));
+  for (const job of stuck) {
+    if (!job.filePath || !fs.existsSync(job.filePath)) continue;
+    for (const h of job.hosts) {
+      if (h.status !== 'uploading' && h.status !== 'waiting') continue;
+      uploadManager.retryHostUpload({
+        jobId: job.id,
+        episodeId: job.episodeId,
+        animeId: job.animeId,
+        host: h.host,
+        filePath: job.filePath,
+        accessToken: currentToken(),
+        onUpdate: (patch) => {
+          const current = getJob(job.id);
+          if (!current) return;
+          const hostsArr = current.hosts.map((x) => (x.host === patch.host ? { ...x, ...patch } : x));
+          upsertJob({ id: job.id, hosts: hostsArr });
+          broadcastOps();
+        },
+      });
+    }
+  }
+  return { resumed: stuck.length };
 });
 
 function broadcastOps() {

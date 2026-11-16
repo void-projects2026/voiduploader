@@ -96,6 +96,7 @@ function SingleEpisode({ hosts }) {
   const [checking, setChecking] = useState(false);
   const [presence, setPresence] = useState(null); // { earnvid: bool, ... }
   const [busy, setBusy] = useState(false);
+  const [dragOver, setDragOver] = useState(false);
   const debounceRef = useRef(null);
 
   useEffect(() => {
@@ -114,6 +115,22 @@ function SingleEpisode({ hosts }) {
   const pickFile = async () => {
     const path = await window.api.pickFile();
     if (path) setFilePath(path);
+  };
+
+  const applyDroppedFile = async (file) => {
+    const path = window.api.getPathForFile(file);
+    if (!path) return;
+    const info = await window.api.inspectDroppedFile(path);
+    if (!info.isVideo) return push('الملف المسحوب ليس فيديو مدعومًا', 'error');
+    setFilePath(path);
+    if (!episodeNumber && info.guessedEpisode) setEpisodeNumber(String(info.guessedEpisode));
+  };
+
+  const onDrop = (e) => {
+    e.preventDefault();
+    setDragOver(false);
+    const file = e.dataTransfer.files?.[0];
+    if (file) applyDroppedFile(file);
   };
 
   const upload = async () => {
@@ -147,8 +164,14 @@ function SingleEpisode({ hosts }) {
   };
 
   return (
-    <div className="card p-5 mb-6">
-      <h3 className="text-sm font-bold text-white mb-4">رفع حلقة واحدة</h3>
+    <div
+      className={`card p-5 mb-6 transition-colors ${dragOver ? 'border-accent bg-accent/5' : ''}`}
+      onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
+      onDragLeave={() => setDragOver(false)}
+      onDrop={onDrop}
+    >
+      <h3 className="text-sm font-bold text-white mb-1">رفع حلقة واحدة</h3>
+      <p className="text-[11px] text-zinc-500 mb-4">اسحب ملف الفيديو وأفلته هنا، أو اختره يدويًا.</p>
       <div className="flex items-end gap-3 flex-wrap">
         <div className="w-28">
           <label className="label">رقم الحلقة</label>
@@ -184,10 +207,26 @@ function BulkFolder({ hosts }) {
   const [to, setTo] = useState('');
   const [files, setFiles] = useState([]);
   const [busy, setBusy] = useState(false);
+  const [dragOver, setDragOver] = useState(false);
 
   const pickFolder = async () => {
     const res = await window.api.pickAndScanFolder();
     if (res) setFiles(res.files);
+  };
+
+  const onDrop = async (e) => {
+    e.preventDefault();
+    setDragOver(false);
+    const dropped = Array.from(e.dataTransfer.files || []);
+    if (!dropped.length) return;
+    const resolved = await Promise.all(
+      dropped.map(async (file) => {
+        const p = window.api.getPathForFile(file);
+        const info = await window.api.inspectDroppedFile(p);
+        return info.isVideo ? { name: file.name, path: p, size: file.size, guessedEpisode: info.guessedEpisode } : null;
+      })
+    );
+    setFiles(resolved.filter(Boolean));
   };
 
   const matched = files.filter((f) => f.guessedEpisode && (!from || f.guessedEpisode >= Number(from)) && (!to || f.guessedEpisode <= Number(to)));
@@ -222,8 +261,14 @@ function BulkFolder({ hosts }) {
   };
 
   return (
-    <div className="card p-5">
-      <h3 className="text-sm font-bold text-white mb-4">رفع متعدد (فولدر)</h3>
+    <div
+      className={`card p-5 transition-colors ${dragOver ? 'border-accent bg-accent/5' : ''}`}
+      onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
+      onDragLeave={() => setDragOver(false)}
+      onDrop={onDrop}
+    >
+      <h3 className="text-sm font-bold text-white mb-1">رفع متعدد (فولدر)</h3>
+      <p className="text-[11px] text-zinc-500 mb-4">اسحب كذا ملف فيديو وأفلتهم هنا، أو اختر فولدر كامل.</p>
       <div className="flex items-end gap-3 flex-wrap mb-3">
         <div className="w-24"><label className="label">من حلقة</label><input className="input" type="number" value={from} onChange={(e) => setFrom(e.target.value)} /></div>
         <div className="w-24"><label className="label">إلى حلقة</label><input className="input" type="number" value={to} onChange={(e) => setTo(e.target.value)} /></div>

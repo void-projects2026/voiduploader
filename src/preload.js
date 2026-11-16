@@ -1,6 +1,14 @@
-const { contextBridge, ipcRenderer } = require('electron');
+const { contextBridge, ipcRenderer, webUtils } = require('electron');
 
 contextBridge.exposeInMainWorld('api', {
+  // Drag&drop: a dropped File object has no usable path once contextBridge
+  // clones it into the main world, except through webUtils.getPathForFile,
+  // which must run here (preload) on the original File reference.
+  getPathForFile: (file) => webUtils.getPathForFile(file),
+  inspectDroppedFile: (filePath) => ipcRenderer.invoke('file:inspectDropped', filePath),
+  openEpisodeOnSite: (payload) => ipcRenderer.invoke('shell:openEpisode', payload),
+  resumeIncomplete: () => ipcRenderer.invoke('ops:resumeIncomplete'),
+
   login: (email, password) => ipcRenderer.invoke('auth:login', { email, password }),
   getSession: () => ipcRenderer.invoke('auth:getSession'),
   logout: () => ipcRenderer.invoke('auth:logout'),

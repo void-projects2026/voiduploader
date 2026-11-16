@@ -16,6 +16,10 @@ export function OpsProvider({ children }) {
   useEffect(() => {
     window.api.listOps().then(setJobs);
     window.api.onOpsUpdated(setJobs);
+    // OpsProvider only mounts once the user is logged in (inside Shell),
+    // so this is the right moment to resume anything left mid-transfer
+    // from a previous run that got closed before finishing.
+    window.api.resumeIncomplete();
   }, []);
 
   const retryHost = async (jobId, host) => {
