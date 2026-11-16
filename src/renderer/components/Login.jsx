@@ -25,7 +25,7 @@ export default function Login() {
           <div className="w-11 h-11 rounded-xl bg-accent/15 flex items-center justify-center">
             <Download className="w-5 h-5 text-accent" />
           </div>
-          <h1 className="text-base font-bold text-white">Despair Downloader</h1>
+          <h1 className="text-base font-bold text-white">Anime Upload</h1>
           <p className="text-xs text-zinc-500">تسجيل دخول بحساب الأدمن / مساعد الأدمن</p>
         </div>
 

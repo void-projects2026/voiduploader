@@ -21,7 +21,7 @@ export default function Sidebar({ active, onChange }) {
         <div className="w-7 h-7 rounded-lg bg-accent/15 flex items-center justify-center">
           <Download className="w-3.5 h-3.5 text-accent" />
         </div>
-        <span className="font-bold text-sm text-white">Despair Downloader</span>
+        <span className="font-bold text-sm text-white">Anime Upload</span>
       </div>
 
       <div className="px-5 py-3 border-b border-border">

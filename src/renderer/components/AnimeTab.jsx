@@ -72,7 +72,7 @@ export default function AnimeTab() {
     });
     setCreating(false);
     if (!res.success) return push(res.error || 'فشل الإنشاء', 'error');
-    setSelectedWork({ id: res.id, title: titleAr.trim() });
+    setSelectedWork({ id: res.id, title: titleAr.trim(), coverUrl: picked.coverUrl });
     push(`تم إنشاء "${titleAr.trim()}" بنجاح (${res.episodesCreated || 0} حلقة VIP تلقائية)`, 'success');
     setPicked(null);
     setResults([]);

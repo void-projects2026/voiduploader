@@ -1,7 +1,7 @@
 {
-  "name": "despair-downloader",
-  "version": "2.3.0",
-  "description": "Despair World desktop uploader: upload anime episodes to EarnVid / Doodstream / Voe in parallel, with auto-update.",
+  "name": "anime-upload",
+  "version": "2.4.0",
+  "description": "Anime Upload: despair-world.com desktop uploader for anime episodes to EarnVid / Doodstream / Voe in parallel, with auto-update.",
   "main": "src/main.js",
   "author": "despair-world",
   "license": "UNLICENSED",
@@ -33,8 +33,8 @@
     "lucide-react": "^0.462.0"
   },
   "build": {
-    "appId": "com.despairworld.downloader",
-    "productName": "Despair Downloader",
+    "appId": "com.despairworld.animeupload",
+    "productName": "Anime Upload",
     "electronVersion": "31.7.7",
     "directories": {
       "output": "dist"
@@ -43,11 +43,13 @@
       "src/main.js",
       "src/preload.js",
       "src/lib/**/*",
+      "src/assets/**/*",
       "src/renderer/dist/**/*",
       "package.json"
     ],
     "win": {
-      "target": "nsis"
+      "target": "nsis",
+      "icon": "src/assets/icon.ico"
     },
     "nsis": {
       "oneClick": false,

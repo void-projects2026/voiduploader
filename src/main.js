@@ -51,7 +51,7 @@ function createTray() {
   const iconPath = path.join(__dirname, 'assets', 'icon.png');
   const image = fs.existsSync(iconPath) ? nativeImage.createFromPath(iconPath) : nativeImage.createEmpty();
   tray = new Tray(image);
-  tray.setToolTip('Despair Downloader');
+  tray.setToolTip('Anime Upload');
   const menu = Menu.buildFromTemplate([
     { label: 'إظهار التطبيق', click: () => mainWindow.show() },
     { type: 'separator' },

@@ -45,19 +45,20 @@ function WorkPicker() {
       </div>
 
       {open && results.length > 0 && (
-        <div className="absolute z-20 mt-1.5 w-full card max-h-64 overflow-y-auto shadow-xl shadow-black/40">
+        <div className="absolute z-20 mt-1.5 w-full card max-h-72 overflow-y-auto shadow-xl shadow-black/40">
           {results.map((w) => (
             <button
               key={w.id}
               onClick={() => {
-                setSelectedWork({ id: w.id, title: w.title_ar || w.title || w.title_en || w.id });
+                setSelectedWork({ id: w.id, title: w.title_ar || w.title || w.title_en || w.id, coverUrl: w.cover_url });
                 setQuery('');
                 setResults([]);
                 setOpen(false);
               }}
-              className="w-full text-right px-3.5 py-2.5 text-sm text-zinc-200 hover:bg-panel border-b border-border last:border-0"
+              className="w-full flex items-center gap-2.5 text-right px-3 py-2 text-sm text-zinc-200 hover:bg-panel border-b border-border last:border-0"
             >
-              {w.title_ar || w.title || w.title_en} <span className="text-zinc-500 text-[11px]">({w.id})</span>
+              <img src={w.cover_url} alt="" className="w-8 h-11 rounded-md object-cover shrink-0 bg-panel" onError={(e) => { e.currentTarget.style.visibility = 'hidden'; }} />
+              <span className="truncate">{w.title_ar || w.title || w.title_en} <span className="text-zinc-500 text-[11px]">({w.id})</span></span>
             </button>
           ))}
         </div>
@@ -65,6 +66,7 @@ function WorkPicker() {
 
       {selectedWork && (
         <div className="mt-2 inline-flex items-center gap-2 text-xs text-emerald-400 bg-emerald-500/10 px-3 py-1.5 rounded-lg">
+          {selectedWork.coverUrl && <img src={selectedWork.coverUrl} alt="" className="w-5 h-7 rounded object-cover" />}
           <CheckCircle2 className="w-3.5 h-3.5" /> {selectedWork.title}
         </div>
       )}
