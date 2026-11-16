@@ -9,6 +9,7 @@ const { sessionStore, configStore, listJobs, upsertJob, getJob } = require('./li
 const uploadManager = require('./lib/uploadManager');
 const pyTool = require('./lib/pyTool');
 const { registerToolIpc } = require('./lib/toolIpc');
+const scheduler = require('./lib/scheduler');
 
 const VIDEO_EXTENSIONS = new Set(['.mp4', '.mkv', '.avi', '.mov', '.webm']);
 
@@ -110,6 +111,14 @@ ipcMain.handle('update:install', () => autoUpdater.quitAndInstall());
 
 app.whenReady().then(() => {
   registerToolIpc({ ipcMain, shell, dialog, getWindow: () => mainWindow });
+  scheduler.init({
+    ipcMain,
+    getWindow: () => mainWindow,
+    withAuthRetry,
+    currentToken,
+    queueEpisode: queueEpisodeImpl,
+    retryHost: retryHostImpl,
+  });
   createWindow();
   createTray();
   if (app.isPackaged) autoUpdater.checkForUpdates().catch(() => {});
@@ -262,7 +271,8 @@ ipcMain.handle('upload:checkEpisode', async (_e, { animeId, episodeNumber }) => 
   return { success: true, exists: true, episodeId: existing.id, hostsPresent };
 });
 
-ipcMain.handle('upload:queueEpisode', async (_e, { animeId, animeTitle, episodeNumber, filePath, hosts, title, teamId, isFree }) => {
+// Shared by the Upload tab and the scheduler (src/lib/scheduler.js).
+async function queueEpisodeImpl({ animeId, animeTitle, episodeNumber, filePath, hosts, title, teamId, isFree, extra }) {
   let episodeId;
   const existing = await withAuthRetry((t) => site.listEpisodes(t, animeId));
   const found = existing.success ? existing.episodes.find((ep) => Number(ep.episode_number) === Number(episodeNumber)) : null;
@@ -281,14 +291,17 @@ ipcMain.handle('upload:queueEpisode', async (_e, { animeId, animeTitle, episodeN
     filePath,
     hosts,
     accessToken: currentToken(),
+    extra,
   });
   broadcastOps();
   return { success: true, job };
-});
+}
+
+ipcMain.handle('upload:queueEpisode', (_e, payload) => queueEpisodeImpl(payload));
 
 ipcMain.handle('ops:list', () => listJobs());
 
-ipcMain.handle('ops:retryHost', async (_e, { jobId, host }) => {
+async function retryHostImpl(jobId, host) {
   const job = getJob(jobId);
   if (!job) return { success: false, error: 'المهمة غير موجودة' };
   await uploadManager.retryHostUpload({
@@ -306,7 +319,9 @@ ipcMain.handle('ops:retryHost', async (_e, { jobId, host }) => {
     },
   });
   return { success: true };
-});
+}
+
+ipcMain.handle('ops:retryHost', (_e, { jobId, host }) => retryHostImpl(jobId, host));
 
 ipcMain.handle('shell:openEpisode', (_e, { animeId, episodeNumber }) => {
   shell.openExternal(`https://despair-world.com/series/anime/${encodeURIComponent(animeId)}/ep/${episodeNumber}`);

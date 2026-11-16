@@ -15,7 +15,7 @@ Requests (one JSON object per line on stdin):
   {"id": 5, "cmd": "download", "provider": "anime3rb",
        "anime": {"id": "death-note", "title": "Death Note", "type": "SERIES"},
        "episodes": ["1", "2"], "quality": "1080p", "out_dir": "C:/.../Downloads",
-       "parallel": 2}
+       "parallel": 2, "speed_limit": 0}
   {"id": 6, "cmd": "cancel", "target": 5}
 
 Responses (one JSON object per line on stdout), always carrying the request id:
@@ -184,6 +184,9 @@ class Bridge:
         anime.title_ar = a.get("title_ar", "")
         quality = req.get("quality") or "1080p"
         parallel = max(1, min(int(req.get("parallel") or 2), 4))
+        # Total bytes/sec cap (0 = unlimited), split across parallel files.
+        speed = int(req.get("speed_limit") or 0)
+        per_file_limit = max(1, speed // parallel) if speed > 0 else None
 
         folder = Path(req["out_dir"]) / dl.sanitize_filename(title).rstrip(". ")
         folder.mkdir(parents=True, exist_ok=True)
@@ -237,7 +240,7 @@ class Bridge:
                 if dl.is_hls_url(url):
                     download_hls(url, headers, dest, cancel, lambda d, t: prog(d, t))
                 else:
-                    sd = dl.StreamDownloader()
+                    sd = dl.StreamDownloader(speed_limit_bytes=per_file_limit)
                     state = {"total": None, "done": 0}
 
                     class Prog:  # duck-typed stand-in for rich.Progress

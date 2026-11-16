@@ -95,7 +95,7 @@ async function runHostUpload({ jobId, episodeId, animeId, host, filePath, access
 // `filePath`/`episodeNumber` describe the local file; `episodeId`/`animeId`
 // must already exist on the site (caller creates the episode row first via
 // site.createEpisode if it doesn't exist yet).
-function queueEpisodeUpload({ animeId, animeTitle, episodeId, episodeNumber, filePath, hosts, accessToken }) {
+function queueEpisodeUpload({ animeId, animeTitle, episodeId, episodeNumber, filePath, hosts, accessToken, extra = {} }) {
   const jobId = `job_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
   const job = {
     id: jobId,
@@ -107,6 +107,7 @@ function queueEpisodeUpload({ animeId, animeTitle, episodeId, episodeNumber, fil
     filePath,
     createdAt: new Date().toISOString(),
     hosts: hosts.map((h) => ({ host: h, status: 'pending', progress: 0, error: null, embedUrl: null })),
+    ...extra,
   };
   upsertJob(job);
 

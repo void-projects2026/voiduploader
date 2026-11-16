@@ -23,6 +23,7 @@ function registerToolIpc({ ipcMain, shell, dialog, getWindow }) {
   let tasks = dlStore.get('tasks', []).map((t) =>
     t.status === 'running' ? { ...t, status: 'interrupted', bridgeId: null } : t
   );
+  const lastSample = new WeakMap();
   let persistTimer = null;
   let broadcastTimer = null;
 
@@ -54,13 +55,23 @@ function registerToolIpc({ ipcMain, shell, dialog, getWindow }) {
         quality: task.quality,
         out_dir: library.ensureRoot(),
         parallel: configStore.get('downloadParallel', 2),
+        speed_limit: Math.round(configStore.get('downloadSpeedMB', 0) * 1048576),
       },
       (ev) => {
         const e = task.episodes[ev.episode];
         if (ev.type === 'progress' && e) {
+          // Live speed (smoothed) from successive byte counts - shown even
+          // when the server never told us the total size.
+          const now = Date.now();
+          const prev = lastSample.get(e);
+          if (prev && ev.done >= prev.done && now > prev.t) {
+            const inst = ((ev.done - prev.done) / (now - prev.t)) * 1000;
+            e.speed = e.speed ? e.speed * 0.6 + inst * 0.4 : inst;
+          }
+          lastSample.set(e, { done: ev.done, t: now });
           Object.assign(e, { status: ev.state === 'resolving' ? 'resolving' : 'downloading', done: ev.done, total: ev.total });
         } else if (ev.type === 'episode_done' && e) {
-          Object.assign(e, { status: 'done', path: ev.path, done: ev.size, total: ev.size, error: null });
+          Object.assign(e, { status: 'done', path: ev.path, done: ev.size, total: ev.size, error: null, speed: 0 });
           send('library:changed', null);
         } else if (ev.type === 'episode_error' && e) {
           Object.assign(e, { status: 'error', error: ev.error });
@@ -103,9 +114,11 @@ function registerToolIpc({ ipcMain, shell, dialog, getWindow }) {
     downloadsDir: library.root(),
     quality: configStore.get('downloadQuality', '1080p'),
     parallel: configStore.get('downloadParallel', 2),
+    speedMB: configStore.get('downloadSpeedMB', 0),
   }));
   ipcMain.handle('tool:setSettings', (_e, s) => {
     if (s.quality) configStore.set('downloadQuality', s.quality);
+    if (Number.isFinite(s.speedMB)) configStore.set('downloadSpeedMB', Math.max(0, s.speedMB));
     if (Number.isFinite(s.parallel)) configStore.set('downloadParallel', Math.max(1, Math.min(4, s.parallel)));
     return true;
   });

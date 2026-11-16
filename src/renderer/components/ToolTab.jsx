@@ -3,14 +3,9 @@ import { Search, Loader2, Download, X, RotateCw, Trash2, ArrowRight, CheckSquare
 import { useToast } from '../context/ToastContext.jsx';
 import { useTool } from '../context/ToolContext.jsx';
 import ToolSetupCard from './ToolSetupCard.jsx';
+import { fmtBytes, fmtSpeed } from '../format.js';
 
 const QUALITIES = ['1080p', '720p', '480p'];
-
-function fmtSize(n) {
-  if (!n) return '';
-  const mb = n / 1048576;
-  return mb >= 1024 ? `${(mb / 1024).toFixed(2)} GB` : `${mb.toFixed(0)} MB`;
-}
 
 function parseRange(text, max) {
   const out = new Set();
@@ -201,19 +196,56 @@ function TaskCard({ t }) {
       </div>
       <div className="space-y-1.5">
         {eps.map(([n, e]) => {
-          const pct = e.total ? Math.min(100, Math.round((e.done / e.total) * 100)) : 0;
+          const known = !!e.total;
+          const pct = known ? Math.min(100, Math.round((e.done / e.total) * 100)) : 0;
+          const live = e.status === 'downloading';
           return (
             <div key={n} className="flex items-center gap-2.5 text-xs">
               <span className="w-14 text-zinc-300">حلقة {n}</span>
               <div className="flex-1 h-1.5 rounded bg-panel overflow-hidden">
-                <div className={`h-full ${e.status === 'error' ? 'bg-rose-500' : e.status === 'done' ? 'bg-emerald-500' : 'bg-accent'}`} style={{ width: `${e.status === 'done' ? 100 : pct}%` }} />
+                {live && !known ? (
+                  <div className="h-full w-1/3 bg-accent rounded animate-pulse" />
+                ) : (
+                  <div className={`h-full ${e.status === 'error' ? 'bg-rose-500' : e.status === 'done' ? 'bg-emerald-500' : 'bg-accent'}`} style={{ width: `${e.status === 'done' ? 100 : pct}%` }} />
+                )}
               </div>
-              <span className="w-24 text-zinc-500 text-left" dir="ltr">{e.status === 'downloading' && e.total ? `${pct}% ${fmtSize(e.total)}` : ''}</span>
+              <span className="w-52 text-zinc-500 text-left tabular-nums" dir="ltr">
+                {live && (known ? `${fmtBytes(e.done)} / ${fmtBytes(e.total)} (${pct}%)` : fmtBytes(e.done))}
+                {live && e.speed > 0 && ` • ${fmtSpeed(e.speed)}`}
+                {e.status === 'done' && e.total ? fmtBytes(e.total) : ''}
+              </span>
               <span className={`badge ${STATE_BADGE[e.status] || 'badge-pending'}`} title={e.error || ''}>{STATE_LABEL[e.status] || e.status}</span>
             </div>
           );
         })}
       </div>
+    </div>
+  );
+}
+
+function DownloadSettings() {
+  const [speed, setSpeed] = useState(0);
+  const [parallel, setParallel] = useState(2);
+  useEffect(() => { window.api.getToolSettings().then((s) => { setSpeed(s.speedMB || 0); setParallel(s.parallel || 2); }); }, []);
+  const saveSpeed = (v) => { setSpeed(v); window.api.setToolSettings({ speedMB: v }); };
+  return (
+    <div className="card p-3 mb-5 flex items-center gap-3 flex-wrap text-xs text-zinc-400">
+      <span>حد السرعة (إجمالي):</span>
+      {[0, 1, 2, 5, 10].map((v) => (
+        <button key={v} onClick={() => saveSpeed(v)} className={`px-2 py-1 rounded-md border ${speed === v ? 'border-accent bg-accent/15 text-white' : 'border-border hover:text-zinc-200'}`}>
+          {v === 0 ? 'غير محدود' : `${v} MB/s`}
+        </button>
+      ))}
+      <input
+        type="number" min="0" step="0.5" value={speed}
+        onChange={(e) => saveSpeed(Math.max(0, Number(e.target.value) || 0))}
+        className="input !w-20 !py-1 text-xs" dir="ltr" title="MB/s (0 = غير محدود)"
+      />
+      <span className="ms-3">تحميل متوازي:</span>
+      <select className="input !w-16 !py-1 text-xs" value={parallel} onChange={(e) => { const v = Number(e.target.value); setParallel(v); window.api.setToolSettings({ parallel: v }); }}>
+        {[1, 2, 3, 4].map((n) => <option key={n}>{n}</option>)}
+      </select>
+      <span className="text-[10px] text-zinc-600">الحد بيتقسّم على الحلقات المتوازية. روابط HLS مش بتتحدد سرعتها.</span>
     </div>
   );
 }
@@ -224,6 +256,7 @@ export default function ToolTab() {
     <div className="max-w-3xl">
       <h2 className="text-lg font-bold text-white mb-5">التحميل</h2>
       <ToolSetupCard />
+      {status?.ready && <DownloadSettings />}
       {status?.ready && <SearchPanel />}
       {tasks.length > 0 && (
         <>

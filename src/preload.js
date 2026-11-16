@@ -62,6 +62,18 @@ contextBridge.exposeInMainWorld('api', {
   onDeletePrompt: (cb) => { ipcRenderer.on('library:deletePrompt', (_e, d) => cb(d)); },
   resolveDeletePrompt: (payload) => ipcRenderer.invoke('library:resolveDeletePrompt', payload),
 
+  // Schedule (الجدول)
+  schedList: () => ipcRenderer.invoke('sched:list'),
+  schedWorks: () => ipcRenderer.invoke('sched:works'),
+  schedCreate: (req) => ipcRenderer.invoke('sched:create', req),
+  schedUpdate: (req) => ipcRenderer.invoke('sched:update', req),
+  schedStart: (id) => ipcRenderer.invoke('sched:start', id),
+  schedSchedule: (req) => ipcRenderer.invoke('sched:schedule', req),
+  schedStop: (id) => ipcRenderer.invoke('sched:stop', id),
+  schedDecide: (req) => ipcRenderer.invoke('sched:decide', req),
+  schedDelete: (id) => ipcRenderer.invoke('sched:delete', id),
+  onSchedUpdated: (cb) => { ipcRenderer.on('sched:updated', (_e, t) => cb(t)); },
+
   listOps: () => ipcRenderer.invoke('ops:list'),
   retryHost: (payload) => ipcRenderer.invoke('ops:retryHost', payload),
   onOpsUpdated: (callback) => {

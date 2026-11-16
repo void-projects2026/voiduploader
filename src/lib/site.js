@@ -167,7 +167,66 @@ async function directFinalize(accessToken, { episodeId, animeId, slot, host, fil
   return { success: true, embedUrl: data?.embedUrl || data?.embed_url };
 }
 
+// Direct PostgREST reads (same anon-key + session-token pattern login() already
+// uses for `profiles`). Only the few columns needed to know which hosts an
+// episode already has, so this stays light compared to /api/cache/media-tables.
+const restHeaders = (accessToken) => ({ apikey: SUPABASE_ANON_KEY, Authorization: `Bearer ${accessToken}` });
+
+async function restAll(accessToken, pathAndQuery) {
+  const rows = [];
+  for (let offset = 0; offset < 50000; offset += 1000) {
+    const { ok, data } = await jsonFetch(`${SUPABASE_URL}/rest/v1/${pathAndQuery}&limit=1000&offset=${offset}`, { headers: restHeaders(accessToken) });
+    if (!ok || !Array.isArray(data)) return null;
+    rows.push(...data);
+    if (data.length < 1000) break;
+  }
+  return rows;
+}
+
+const hasUrl = (v) => typeof v === 'string' && v.trim() !== '';
+// Host columns written by direct-finalize (server PIPELINE_HOST_FIELD).
+function hostsOfRow(r) {
+  return { earnvid: hasUrl(r.earnvid_url), doodstream: hasUrl(r.doodstream_url), voe: hasUrl(r.embed_url_4) };
+}
+
+// Every anime work + per-episode host presence, for the schedule tab.
+async function listWorksWithHosts(accessToken) {
+  const works = await restAll(accessToken, 'anime_works?select=id,title_ar,title_en,cover_url,anilist_id,episodes_count&order=updated_at.desc');
+  const eps = await restAll(accessToken, 'anime_episodes?select=anime_id,episode_number,earnvid_url,doodstream_url,embed_url_4&order=anime_id.asc');
+  if (!works || !eps) return { success: false, error: 'فشل جلب الأعمال من الموقع' };
+  const byWork = new Map();
+  for (const e of eps) {
+    if (!byWork.has(e.anime_id)) byWork.set(e.anime_id, new Map());
+    byWork.get(e.anime_id).set(Number(e.episode_number), hostsOfRow(e));
+  }
+  return {
+    success: true,
+    works: works.map((w) => {
+      const present = byWork.get(w.id) || new Map();
+      const total = Math.max(Number(w.episodes_count) || 0, ...present.keys(), 0);
+      const missing = [];
+      for (let n = 1; n <= total; n += 1) {
+        const h = present.get(n);
+        const lacking = ['earnvid', 'doodstream', 'voe'].filter((k) => !(h && h[k]));
+        if (lacking.length) missing.push({ n, lacking });
+      }
+      return { id: w.id, title: w.title_ar || w.title_en || w.id, titleEn: w.title_en || '', coverUrl: w.cover_url, anilistId: w.anilist_id, total, missing };
+    }),
+  };
+}
+
+// Host presence for one work's episodes: { [episodeNumber]: {earnvid,doodstream,voe} }.
+async function episodeHosts(accessToken, animeId) {
+  const rows = await restAll(accessToken, `anime_episodes?anime_id=eq.${encodeURIComponent(animeId)}&select=episode_number,earnvid_url,doodstream_url,embed_url_4`);
+  if (!rows) return { success: false, error: 'فشل جلب حالة الحلقات' };
+  const out = {};
+  for (const r of rows) out[Number(r.episode_number)] = hostsOfRow(r);
+  return { success: true, hosts: out };
+}
+
 module.exports = {
+  listWorksWithHosts,
+  episodeHosts,
   login,
   refreshSession,
   searchAnimeWorks,
