@@ -56,7 +56,8 @@
     "publish": {
       "provider": "github",
       "owner": "void-projects2026",
-      "repo": "voiduploader"
+      "repo": "voiduploader",
+      "releaseType": "release"
     }
   }
 }
