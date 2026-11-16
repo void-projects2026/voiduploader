@@ -1,0 +1,31 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  html, body, #root { height: 100%; }
+  body { margin: 0; font-family: "Segoe UI", Tahoma, Arial, sans-serif; overflow: hidden; }
+  ::-webkit-scrollbar { width: 8px; height: 8px; }
+  ::-webkit-scrollbar-thumb { background: #2a3142; border-radius: 4px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+}
+
+@layer components {
+  .input {
+    @apply w-full px-3 py-2.5 rounded-lg border border-border bg-panel text-zinc-100 text-sm outline-none transition-colors;
+    @apply focus:border-accent;
+  }
+  .btn {
+    @apply inline-flex items-center justify-center gap-1.5 px-4 py-2 rounded-lg text-sm font-semibold transition-colors disabled:opacity-50 disabled:cursor-not-allowed;
+  }
+  .btn-primary { @apply bg-accent text-white hover:bg-blue-600; }
+  .btn-secondary { @apply bg-[#1f2635] text-zinc-200 hover:bg-[#2a3142]; }
+  .btn-danger { @apply bg-rose-600/20 text-rose-400 hover:bg-rose-600/30; }
+  .card { @apply bg-card border border-border rounded-xl; }
+  .label { @apply block mb-1.5 text-xs text-zinc-400; }
+  .badge { @apply px-2 py-0.5 rounded-md text-[11px] font-medium inline-flex items-center gap-1; }
+  .badge-pending { @apply bg-[#2a3142] text-zinc-300; }
+  .badge-uploading { @apply bg-sky-900/60 text-sky-300; }
+  .badge-done { @apply bg-emerald-900/60 text-emerald-300; }
+  .badge-error { @apply bg-rose-900/60 text-rose-300; }
+}

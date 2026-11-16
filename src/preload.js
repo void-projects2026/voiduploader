@@ -13,6 +13,7 @@ contextBridge.exposeInMainWorld('api', {
 
   getConfig: () => ipcRenderer.invoke('config:get'),
   setConfig: (cfg) => ipcRenderer.invoke('config:set', cfg),
+  getAppVersion: () => ipcRenderer.invoke('app:getVersion'),
 
   pickFile: () => ipcRenderer.invoke('file:pick'),
   pickAndScanFolder: () => ipcRenderer.invoke('folder:pickAndScan'),

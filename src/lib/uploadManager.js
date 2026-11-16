@@ -63,13 +63,6 @@ async function resolveSlot(accessToken, episodeId, host) {
 // website's browser-based admin panel uses. Updates the persisted
 // operations row as it goes so the UI (and app restarts) see live state.
 async function runHostUpload({ jobId, episodeId, animeId, host, filePath, accessToken, slot, onUpdate }) {
-  const apiKeyByHost = {
-    earnvid: configStore.get('earnvidApiKey', ''),
-    doodstream: configStore.get('doodstreamApiKey', ''),
-    voe: configStore.get('voeApiKey', ''),
-  };
-  const apiKey = apiKeyByHost[host];
-
   const setHostState = (patch) => {
     onUpdate({ host, ...patch });
   };
@@ -78,8 +71,10 @@ async function runHostUpload({ jobId, episodeId, animeId, host, filePath, access
   await semaphore.acquire();
   try {
     setHostState({ status: 'uploading', progress: 1, error: null });
+    const uploadConfig = await site.getDirectUploadConfig(accessToken, host);
+    if (!uploadConfig.success) throw new Error(uploadConfig.error);
     let lastReported = 0;
-    const result = await uploadFile(host, filePath, apiKey, ({ pct }) => {
+    const result = await uploadFile(host, filePath, uploadConfig, ({ pct }) => {
       setHostState({ status: 'uploading', progress: pct });
       if (pct - lastReported >= 5) {
         lastReported = pct;

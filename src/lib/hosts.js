@@ -63,18 +63,20 @@ const PROVIDERS = {
 
 const HOST_KEYS = ['earnvid', 'doodstream', 'voe'];
 
-async function uploadFile(host, filePath, apiKey, onProgress) {
+// `uploadConfig` ({ uploadUrl, fieldName, apiKey }) is resolved fresh, per
+// upload, from the website's own `/host-upload/direct-init` endpoint (see
+// site.js's getDirectUploadConfig) - the app never stores host API keys
+// itself, the server hands back a short-lived upload URL + the real key
+// every time (owner decision 2026-11-15).
+async function uploadFile(host, filePath, uploadConfig, onProgress) {
   const cfg = PROVIDERS[host];
   if (!cfg) throw new Error(`استضافة غير معروفة: ${host}`);
-  if (!apiKey) throw new Error(`مفتاح API مفقود لـ ${host}`);
-
-  const serverRes = await axios.get(cfg.serverEndpoint(apiKey), { timeout: 30000 });
-  const uploadUrl = serverRes.data && serverRes.data.result;
-  if (!uploadUrl) throw new Error((serverRes.data && serverRes.data.msg) || `تعذر الحصول على رابط رفع ${host}`);
+  const { uploadUrl, fieldName, apiKey } = uploadConfig || {};
+  if (!uploadUrl || !apiKey) throw new Error(`تعذر الحصول على رابط رفع ${host} من السيرفر`);
 
   const stat = fs.statSync(filePath);
   const form = new FormData();
-  form.append(cfg.fileField, apiKey);
+  form.append(fieldName || cfg.fileField, apiKey);
   form.append('file', fs.createReadStream(filePath), { knownLength: stat.size });
 
   const totalLength = await new Promise((resolve, reject) => {

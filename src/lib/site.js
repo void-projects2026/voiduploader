@@ -135,6 +135,20 @@ async function listHostJobs(accessToken, episodeId) {
   return { success: true, jobs: data?.jobs || data?.items || data || [] };
 }
 
+// Owner decision 2026-11-15: the app never asks the admin to paste in host
+// API keys - it gets a fresh, short-lived upload URL + the real key straight
+// from the server (same endpoint the website's own browser-based admin
+// panel uses for its direct-from-device uploads), every time, right before
+// each upload starts. Keys live only in server/anime-hosts.mjs env vars.
+async function getDirectUploadConfig(accessToken, host) {
+  const { ok, data } = await jsonFetch(
+    `${SITE_URL}/api/cache/admin/anime/host-upload/direct-init?host=${encodeURIComponent(host)}`,
+    { headers: authHeaders(accessToken) }
+  );
+  if (!ok || !data?.uploadUrl) return { success: false, error: data?.error || `تعذر الحصول على رابط رفع ${host}` };
+  return { success: true, uploadUrl: data.uploadUrl, fieldName: data.fieldName, apiKey: data.apiKey };
+}
+
 async function directProgress(accessToken, { episodeId, animeId, slot, host, progress }) {
   return jsonFetch(`${SITE_URL}/api/cache/admin/anime/host-upload/direct-progress`, {
     method: 'POST',
@@ -163,6 +177,7 @@ module.exports = {
   listEpisodes,
   createEpisode,
   listHostJobs,
+  getDirectUploadConfig,
   directProgress,
   directFinalize,
 };

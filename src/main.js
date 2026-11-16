@@ -26,7 +26,15 @@ function createWindow() {
     },
   });
   mainWindow.setMenuBarVisibility(false);
-  mainWindow.loadFile(path.join(__dirname, 'index.html'));
+
+  // Dev: load the Vite dev server (HMR - edits show up instantly, no
+  // rebuild/reinstall). Packaged app: load the pre-built static files.
+  if (!app.isPackaged) {
+    mainWindow.loadURL('http://localhost:5173');
+    mainWindow.webContents.openDevTools({ mode: 'detach' });
+  } else {
+    mainWindow.loadFile(path.join(__dirname, 'renderer', 'dist', 'index.html'));
+  }
 
   // Uploads must keep running even if the window is closed - minimize to
   // tray instead of quitting, per the owner's explicit choice (simplest +
@@ -118,22 +126,18 @@ ipcMain.handle('anime:createEpisode', (_e, payload) => site.createEpisode(curren
 ipcMain.handle('anime:listHostJobs', (_e, episodeId) => site.listHostJobs(currentToken(), episodeId));
 
 // ---------------------------------------------------------------------------
-// Config (host API keys + concurrency)
+// Config (concurrency only - host keys come from the server per-upload)
 // ---------------------------------------------------------------------------
 ipcMain.handle('config:get', () => ({
-  earnvidApiKey: configStore.get('earnvidApiKey', ''),
-  doodstreamApiKey: configStore.get('doodstreamApiKey', ''),
-  voeApiKey: configStore.get('voeApiKey', ''),
   concurrency: configStore.get('concurrency', 3),
 }));
 
 ipcMain.handle('config:set', (_e, cfg) => {
-  if (typeof cfg.earnvidApiKey === 'string') configStore.set('earnvidApiKey', cfg.earnvidApiKey);
-  if (typeof cfg.doodstreamApiKey === 'string') configStore.set('doodstreamApiKey', cfg.doodstreamApiKey);
-  if (typeof cfg.voeApiKey === 'string') configStore.set('voeApiKey', cfg.voeApiKey);
   if (Number.isFinite(cfg.concurrency)) uploadManager.setConcurrency(cfg.concurrency);
   return true;
 });
+
+ipcMain.handle('app:getVersion', () => app.getVersion());
 
 // ---------------------------------------------------------------------------
 // Folder / file pickers

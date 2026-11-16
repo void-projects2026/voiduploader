@@ -8,11 +8,10 @@ const Store = require('electron-store');
 // multi-tenant app).
 const sessionStore = new Store({ name: 'session', defaults: { accessToken: '', refreshToken: '', userId: '', profile: null } });
 
-// Host API keys, entered once in Settings.
-const configStore = new Store({
-  name: 'config',
-  defaults: { earnvidApiKey: '', doodstreamApiKey: '', voeApiKey: '', concurrency: 3 },
-});
+// App config - host API keys deliberately live only on the server
+// (owner decision 2026-11-15: the app fetches a fresh key + upload URL per
+// upload via site.getDirectUploadConfig, never stores one locally).
+const configStore = new Store({ name: 'config', defaults: { concurrency: 3 } });
 
 // Operations table: one row per (episode, host) upload attempt, persisted
 // so it survives app restarts and keeps updating while minimized to tray.
