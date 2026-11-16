@@ -1,6 +1,6 @@
 {
   "name": "despair-downloader",
-  "version": "2.2.0",
+  "version": "2.2.1",
   "description": "Despair World desktop uploader: upload anime episodes to EarnVid / Doodstream / Voe in parallel, with auto-update.",
   "main": "src/main.js",
   "author": "despair-world",

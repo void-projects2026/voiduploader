@@ -130,16 +130,42 @@ function currentToken() {
   return sessionStore.get('accessToken', '');
 }
 
+// Supabase access tokens are short-lived (~1h) and this app never refreshed
+// them - every call just kept using the same token from login until it
+// expired, at which point every authenticated request started 403ing
+// ("forbidden") with no way to recover short of logging out and back in.
+// Any authenticated call now retries once, with a freshly refreshed token,
+// if the first attempt fails - safe to retry blindly since a failed call
+// never had a side effect to double up on.
+async function refreshToken() {
+  const rt = sessionStore.get('refreshToken', '');
+  if (!rt) return null;
+  const res = await site.refreshSession(rt);
+  if (!res.success) return null;
+  sessionStore.set('accessToken', res.accessToken);
+  sessionStore.set('refreshToken', res.refreshToken);
+  return res.accessToken;
+}
+
+async function withAuthRetry(fn) {
+  let result = await fn(currentToken());
+  if (!result || !result.success) {
+    const fresh = await refreshToken();
+    if (fresh) result = await fn(fresh);
+  }
+  return result;
+}
+
 // ---------------------------------------------------------------------------
 // Anime works / episodes
 // ---------------------------------------------------------------------------
-ipcMain.handle('anime:searchWorks', (_e, q) => site.searchAnimeWorks(currentToken(), q));
-ipcMain.handle('anime:anilistSearch', (_e, q) => site.anilistSearch(currentToken(), q));
-ipcMain.handle('anime:anilistTranslatePreview', (_e, payload) => site.anilistTranslatePreview(currentToken(), payload));
-ipcMain.handle('anime:anilistCreate', (_e, payload) => site.anilistCreate(currentToken(), payload));
-ipcMain.handle('anime:listEpisodes', (_e, animeId) => site.listEpisodes(currentToken(), animeId));
-ipcMain.handle('anime:createEpisode', (_e, payload) => site.createEpisode(currentToken(), payload));
-ipcMain.handle('anime:listHostJobs', (_e, episodeId) => site.listHostJobs(currentToken(), episodeId));
+ipcMain.handle('anime:searchWorks', (_e, q) => withAuthRetry((t) => site.searchAnimeWorks(t, q)));
+ipcMain.handle('anime:anilistSearch', (_e, q) => withAuthRetry((t) => site.anilistSearch(t, q)));
+ipcMain.handle('anime:anilistTranslatePreview', (_e, payload) => withAuthRetry((t) => site.anilistTranslatePreview(t, payload)));
+ipcMain.handle('anime:anilistCreate', (_e, payload) => withAuthRetry((t) => site.anilistCreate(t, payload)));
+ipcMain.handle('anime:listEpisodes', (_e, animeId) => withAuthRetry((t) => site.listEpisodes(t, animeId)));
+ipcMain.handle('anime:createEpisode', (_e, payload) => withAuthRetry((t) => site.createEpisode(t, payload)));
+ipcMain.handle('anime:listHostJobs', (_e, episodeId) => withAuthRetry((t) => site.listHostJobs(t, episodeId)));
 
 // ---------------------------------------------------------------------------
 // Config (concurrency only - host keys come from the server per-upload)
@@ -188,11 +214,11 @@ ipcMain.handle('folder:pickAndScan', async () => {
 // Upload orchestration + operations table
 // ---------------------------------------------------------------------------
 ipcMain.handle('upload:checkEpisode', async (_e, { animeId, episodeNumber }) => {
-  const { episodes, success, error } = await site.listEpisodes(currentToken(), animeId);
+  const { episodes, success, error } = await withAuthRetry((t) => site.listEpisodes(t, animeId));
   if (!success) return { success: false, error };
   const existing = episodes.find((ep) => Number(ep.episode_number) === Number(episodeNumber));
   if (!existing) return { success: true, exists: false };
-  const { jobs } = await site.listHostJobs(currentToken(), existing.id).catch(() => ({ jobs: [] }));
+  const { jobs } = await withAuthRetry((t) => site.listHostJobs(t, existing.id)).catch(() => ({ jobs: [] }));
   const hostsPresent = {};
   HOST_KEYS.forEach((h) => {
     const j = (jobs || []).find((row) => row.host === h);
@@ -203,12 +229,12 @@ ipcMain.handle('upload:checkEpisode', async (_e, { animeId, episodeNumber }) => 
 
 ipcMain.handle('upload:queueEpisode', async (_e, { animeId, animeTitle, episodeNumber, filePath, hosts, title, teamId, isFree }) => {
   let episodeId;
-  const existing = await site.listEpisodes(currentToken(), animeId);
+  const existing = await withAuthRetry((t) => site.listEpisodes(t, animeId));
   const found = existing.success ? existing.episodes.find((ep) => Number(ep.episode_number) === Number(episodeNumber)) : null;
   if (found) {
     episodeId = found.id;
   } else {
-    const created = await site.createEpisode(currentToken(), { animeId, episodeNumber, title, teamId, isFree });
+    const created = await withAuthRetry((t) => site.createEpisode(t, { animeId, episodeNumber, title, teamId, isFree }));
     if (!created.success) return created;
     episodeId = created.episode.id;
   }
