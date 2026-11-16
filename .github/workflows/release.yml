@@ -22,19 +22,28 @@ jobs:
       - name: Install dependencies
         run: npm install
 
-      - name: Build NSIS installer
+      # On a tag push, electron-builder itself publishes to the GitHub
+      # Release (via GH_TOKEN) AND uploads latest.yml + the .exe's
+      # .blockmap alongside the installer - electron-updater on every
+      # installed copy NEEDS latest.yml to even detect a new version
+      # exists. The previous setup only ever uploaded the bare .exe via a
+      # separate action, so auto-update silently found nothing to update
+      # to, forever (root cause of users getting stuck on old versions).
+      - name: Build + publish (tag push)
+        if: startsWith(github.ref, 'refs/tags/v')
+        run: npm run release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      # Manual/non-tag runs: build only, no publish, just an inspectable
+      # artifact.
+      - name: Build only (manual run)
+        if: ${{ !startsWith(github.ref, 'refs/tags/v') }}
         run: npm run build
 
       - name: Upload build artifact (every run)
         uses: actions/upload-artifact@v4
         with:
-          name: voidzone-uploader-windows
+          name: despair-downloader-windows
           path: dist/*.exe
           if-no-files-found: error
-
-      - name: Publish GitHub Release (tag pushes only)
-        if: startsWith(github.ref, 'refs/tags/v')
-        uses: softprops/action-gh-release@v2
-        with:
-          files: dist/*.exe
-          generate_release_notes: true

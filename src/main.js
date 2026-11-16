@@ -67,10 +67,26 @@ function createTray() {
   tray.on('click', () => mainWindow.show());
 }
 
+function sendUpdateStatus(status, extra = {}) {
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    mainWindow.webContents.send('update:status', { status, ...extra });
+  }
+}
+
+autoUpdater.on('checking-for-update', () => sendUpdateStatus('checking'));
+autoUpdater.on('update-available', (info) => sendUpdateStatus('available', { version: info.version }));
+autoUpdater.on('update-not-available', () => sendUpdateStatus('up-to-date'));
+autoUpdater.on('download-progress', (p) => sendUpdateStatus('downloading', { percent: Math.round(p.percent) }));
+autoUpdater.on('update-downloaded', (info) => sendUpdateStatus('ready', { version: info.version }));
+autoUpdater.on('error', (err) => sendUpdateStatus('error', { message: err?.message }));
+
+ipcMain.handle('update:check', () => autoUpdater.checkForUpdates().catch((err) => sendUpdateStatus('error', { message: err?.message })));
+ipcMain.handle('update:install', () => autoUpdater.quitAndInstall());
+
 app.whenReady().then(() => {
   createWindow();
   createTray();
-  autoUpdater.checkForUpdatesAndNotify().catch(() => {});
+  if (app.isPackaged) autoUpdater.checkForUpdates().catch(() => {});
 });
 
 app.on('window-all-closed', () => {

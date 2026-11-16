@@ -35,7 +35,10 @@ export default function SettingsTab() {
 
       <button onClick={save} className="btn btn-primary">حفظ</button>
 
-      {version && <p className="text-[11px] text-zinc-600 mt-8">الإصدار: {version}</p>}
+      <div className="mt-8 pt-4 border-t border-border flex items-center justify-between">
+        {version && <p className="text-[11px] text-zinc-600">الإصدار: {version}</p>}
+        <button onClick={() => { window.api.checkForUpdate(); push('جارِ التحقق من وجود تحديث...', 'info'); }} className="btn btn-secondary text-xs">تحقق من التحديثات</button>
+      </div>
     </div>
   );
 }

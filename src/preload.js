@@ -15,6 +15,12 @@ contextBridge.exposeInMainWorld('api', {
   setConfig: (cfg) => ipcRenderer.invoke('config:set', cfg),
   getAppVersion: () => ipcRenderer.invoke('app:getVersion'),
 
+  checkForUpdate: () => ipcRenderer.invoke('update:check'),
+  installUpdate: () => ipcRenderer.invoke('update:install'),
+  onUpdateStatus: (callback) => {
+    ipcRenderer.on('update:status', (_event, data) => callback(data));
+  },
+
   pickFile: () => ipcRenderer.invoke('file:pick'),
   pickAndScanFolder: () => ipcRenderer.invoke('folder:pickAndScan'),
 

@@ -9,6 +9,7 @@ import AnimeTab from './components/AnimeTab.jsx';
 import UploadTab from './components/UploadTab.jsx';
 import OpsTab from './components/OpsTab.jsx';
 import SettingsTab from './components/SettingsTab.jsx';
+import UpdateBanner from './components/UpdateBanner.jsx';
 
 function Shell() {
   const { profile, loading } = useSession();
@@ -22,6 +23,7 @@ function Shell() {
 
   return (
     <div className="h-screen flex">
+      <UpdateBanner />
       <Sidebar active={activeTab} onChange={setActiveTab} />
       <main className="flex-1 overflow-y-auto p-7">
         {activeTab === 'anime' && <AnimeTab />}
