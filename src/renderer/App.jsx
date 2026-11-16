@@ -9,6 +9,10 @@ import AnimeTab from './components/AnimeTab.jsx';
 import UploadTab from './components/UploadTab.jsx';
 import OpsTab from './components/OpsTab.jsx';
 import SettingsTab from './components/SettingsTab.jsx';
+import ToolTab from './components/ToolTab.jsx';
+import LibraryTab from './components/LibraryTab.jsx';
+import DeletePrompt from './components/DeletePrompt.jsx';
+import { ToolProvider } from './context/ToolContext.jsx';
 import UpdateBanner from './components/UpdateBanner.jsx';
 
 function Shell() {
@@ -24,10 +28,13 @@ function Shell() {
   return (
     <div className="h-screen flex">
       <UpdateBanner />
+      <DeletePrompt />
       <Sidebar active={activeTab} onChange={setActiveTab} />
       <main className="flex-1 overflow-y-auto p-7">
         {activeTab === 'anime' && <AnimeTab />}
         {activeTab === 'upload' && <UploadTab />}
+        {activeTab === 'tool' && <ToolTab />}
+        {activeTab === 'library' && <LibraryTab />}
         {activeTab === 'ops' && <OpsTab />}
         {activeTab === 'settings' && <SettingsTab />}
       </main>
@@ -41,7 +48,9 @@ export default function App() {
       <SessionProvider>
         <OpsProvider>
           <WorkProvider>
-            <Shell />
+            <ToolProvider>
+              <Shell />
+            </ToolProvider>
           </WorkProvider>
         </OpsProvider>
       </SessionProvider>

@@ -7,6 +7,8 @@ const site = require('./lib/site');
 const { HOST_KEYS } = require('./lib/hosts');
 const { sessionStore, configStore, listJobs, upsertJob, getJob } = require('./lib/stores');
 const uploadManager = require('./lib/uploadManager');
+const pyTool = require('./lib/pyTool');
+const { registerToolIpc } = require('./lib/toolIpc');
 
 const VIDEO_EXTENSIONS = new Set(['.mp4', '.mkv', '.avi', '.mov', '.webm']);
 
@@ -107,6 +109,7 @@ ipcMain.handle('update:check', () => autoUpdater.checkForUpdates().catch((err) =
 ipcMain.handle('update:install', () => autoUpdater.quitAndInstall());
 
 app.whenReady().then(() => {
+  registerToolIpc({ ipcMain, shell, dialog, getWindow: () => mainWindow });
   createWindow();
   createTray();
   if (app.isPackaged) autoUpdater.checkForUpdates().catch(() => {});
@@ -119,6 +122,7 @@ app.on('window-all-closed', () => {
 
 app.on('before-quit', () => {
   isQuitting = true;
+  pyTool.stopBridge();
 });
 
 // ---------------------------------------------------------------------------

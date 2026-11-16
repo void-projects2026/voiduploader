@@ -33,7 +33,7 @@ export function ToastProvider({ children }) {
   // Promise-based confirm, replacing window.confirm with a styled toast
   // that resolves true/false - used by the upload tab's "already exists,
   // replace?" check.
-  const confirm = useCallback((message) => {
+  const confirm = useCallback((message, labels = {}) => {
     return new Promise((resolve) => {
       const id = ++idRef.current;
       setToasts((t) => [
@@ -43,6 +43,8 @@ export function ToastProvider({ children }) {
           message,
           type: 'info',
           confirm: true,
+          yesLabel: labels.yes,
+          noLabel: labels.no,
           onYes: () => { dismiss(id); resolve(true); },
           onNo: () => { dismiss(id); resolve(false); },
         },
@@ -60,8 +62,8 @@ export function ToastProvider({ children }) {
             <div className="flex-1 text-xs text-zinc-200 leading-5">{t.message}</div>
             {t.confirm ? (
               <div className="flex gap-1.5 shrink-0">
-                <button onClick={t.onYes} className="btn btn-primary !px-2 !py-1 text-[11px]">استبدال</button>
-                <button onClick={t.onNo} className="btn btn-secondary !px-2 !py-1 text-[11px]">تخطي</button>
+                <button onClick={t.onYes} className="btn btn-primary !px-2 !py-1 text-[11px]">{t.yesLabel || 'استبدال'}</button>
+                <button onClick={t.onNo} className="btn btn-secondary !px-2 !py-1 text-[11px]">{t.noLabel || 'تخطي'}</button>
               </div>
             ) : (
               <button onClick={() => dismiss(t.id)} className="text-zinc-500 hover:text-zinc-300"><X className="w-3.5 h-3.5" /></button>

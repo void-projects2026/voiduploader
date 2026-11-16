@@ -3,13 +3,13 @@ import { Search, FileVideo, FolderOpen, Loader2, CheckCircle2, XCircle, UploadCl
 import { useToast } from '../context/ToastContext.jsx';
 import { useWork } from '../context/WorkContext.jsx';
 
-const HOSTS = [
+export const HOSTS = [
   { id: 'earnvid', label: 'EarnVid' },
   { id: 'doodstream', label: 'Doodstream' },
   { id: 'voe', label: 'Voe' },
 ];
 
-function WorkPicker() {
+export function WorkPicker() {
   const { selectedWork, setSelectedWork } = useWork();
   const [query, setQuery] = useState('');
   const [results, setResults] = useState([]);
@@ -74,7 +74,7 @@ function WorkPicker() {
   );
 }
 
-function HostChecklist({ hosts, setHosts }) {
+export function HostChecklist({ hosts, setHosts }) {
   const toggle = (id) => setHosts((h) => (h.includes(id) ? h.filter((x) => x !== id) : [...h, id]));
   return (
     <div className="flex gap-3 mb-5">

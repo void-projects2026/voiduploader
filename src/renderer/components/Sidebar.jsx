@@ -1,11 +1,13 @@
 import React from 'react';
-import { Clapperboard, UploadCloud, ListChecks, Settings, LogOut, Download } from 'lucide-react';
+import { Clapperboard, UploadCloud, ListChecks, Settings, LogOut, Download, DownloadCloud, HardDrive } from 'lucide-react';
 import { useSession } from '../context/SessionContext.jsx';
 import { useOps } from '../context/OpsContext.jsx';
 
 const ITEMS = [
   { id: 'anime', label: 'الأنمي', icon: Clapperboard },
   { id: 'upload', label: 'الرفع', icon: UploadCloud },
+  { id: 'tool', label: 'التحميل', icon: DownloadCloud },
+  { id: 'library', label: 'تحميلاتي', icon: HardDrive },
   { id: 'ops', label: 'العمليات', icon: ListChecks },
   { id: 'settings', label: 'الإعدادات', icon: Settings },
 ];

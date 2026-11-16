@@ -1,6 +1,6 @@
 {
   "name": "anime-upload",
-  "version": "2.5.0",
+  "version": "2.6.0",
   "description": "Anime Upload: despair-world.com desktop uploader for anime episodes to EarnVid / Doodstream / Voe in parallel, with auto-update.",
   "main": "src/main.js",
   "author": "despair-world",
@@ -43,6 +43,7 @@
       "src/main.js",
       "src/preload.js",
       "src/lib/**/*",
+      "src/python/**/*",
       "src/assets/**/*",
       "src/renderer/dist/**/*",
       "package.json"
