@@ -18,6 +18,10 @@ export default function AnimeTab() {
   const [synopsisAr, setSynopsisAr] = useState('');
   const [genres, setGenres] = useState([]);
   const [tags, setTags] = useState([]);
+  // Owner decision (matches the website admin panel's own AniList modal):
+  // off by default. When off, episodesCount is sent as 0 so the server
+  // creates zero auto-generated VIP episodes; the admin opts in per-work.
+  const [syncVip, setSyncVip] = useState(false);
 
   const doSearch = async () => {
     if (!query.trim()) return;
@@ -34,6 +38,7 @@ export default function AnimeTab() {
     setSynopsisAr(r.descriptionEn);
     setGenres(r.genres || []);
     setTags(r.tags || []);
+    setSyncVip(false);
     setTranslating(true);
     const t = await window.api.anilistTranslatePreview({ descriptionEn: r.descriptionEn, genres: r.genres, tags: r.tags });
     setTranslating(false);
@@ -60,7 +65,7 @@ export default function AnimeTab() {
       genres,
       tags,
       status: picked.status,
-      episodesCount: picked.episodesCount,
+      episodesCount: syncVip ? picked.episodesCount : 0,
       releaseYear: picked.releaseYear,
       studio: picked.studio,
       format: picked.format,
@@ -107,6 +112,10 @@ export default function AnimeTab() {
             <label className="label">الوسوم</label>
             <input className="input" value={tags.join('، ')} onChange={(e) => setTags(e.target.value.split('،').map((s) => s.trim()).filter(Boolean))} />
           </div>
+          <label className="flex items-center gap-2 text-xs text-zinc-300 cursor-pointer select-none">
+            <input type="checkbox" checked={syncVip} onChange={(e) => setSyncVip(e.target.checked)} className="accent-accent" />
+            مزامنة تلقائية مع سيرفر VIP (إنشاء حلقات VIP تلقائيًا الآن) -- متوقف افتراضيًا
+          </label>
           <div className="flex gap-2 pt-2">
             <button onClick={confirmCreate} disabled={creating || translating} className="btn btn-primary">
               {creating && <Loader2 className="w-4 h-4 animate-spin" />} تأكيد الإنشاء

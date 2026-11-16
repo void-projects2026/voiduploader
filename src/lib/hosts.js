@@ -39,24 +39,27 @@ const PROVIDERS = {
     serverEndpoint: (key) => `https://voe.sx/api/upload/server?key=${encodeURIComponent(key)}`,
     fileField: 'key',
     embedUrl: (fileCode) => `https://voe.sx/e/${fileCode}`,
-    // Voe is documented (anime-hosts.mjs) as the same whitelabel API family
-    // as Doodstream for its remote-upload-by-url endpoint (object-shaped
-    // result with file_code); the direct binary-upload response shape for
-    // this specific endpoint isn't separately doc-confirmed, so this parses
-    // defensively across every shape the sibling hosts use (array/object,
-    // filecode/file_code) instead of assuming one.
+    // Confirmed live 2026-11-16 by actually uploading a real file to voe's
+    // /api/upload/server URL: the response is `{ success: true, file: {
+    // file_code, ... } }` - singular "file" (an object), not "files"
+    // (array) or "result" like the other 2 hosts. This is why voe uploads
+    // were silently failing before: the old defensive guesses (result/
+    // result[0]/files[0]) never matched this exact shape, so every upload
+    // actually succeeded on voe's end but this app still reported it as
+    // failed. Kept the other shapes as a fallback in case voe changes this.
     parse: (json) => {
       const candidates = [
+        json?.file,
         json?.result,
         Array.isArray(json?.result) ? json.result[0] : null,
         json?.files?.[0],
         json,
       ].filter(Boolean);
       for (const c of candidates) {
-        const fileCode = c?.filecode || c?.file_code;
+        const fileCode = c?.file_code || c?.filecode;
         if (fileCode) return { fileCode };
       }
-      throw new Error(json?.msg || json?.message || 'فشل رفع Voe');
+      throw new Error(json?.message || json?.msg || 'فشل رفع Voe');
     },
   },
 };
