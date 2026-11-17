@@ -5,7 +5,7 @@ const os = require('os');
 const path = require('path');
 const { startMock } = require('./mockHosts');
 const { uploadFile, DEFAULTS } = require('../src/lib/hosts');
-const { pollProcessing, parseEarnvid, parseDood, parseVoe } = require('../src/lib/hostStatus');
+const { pollProcessing, parseEarnvid, parseDood } = require('../src/lib/hostStatus');
 const { classifyError, redact } = require('../src/lib/netErrors');
 
 const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'vu-'));
@@ -121,6 +121,40 @@ const t = async (name, fn) => { try { await fn(); pass += 1; console.log('ok  -'
     assert.strictEqual(ups[ups.length - 1].state, 'done');
     await m.close();
   });
+  const voePoll = async (mode) => {
+    require('../src/lib/hostStatus').voeShared.clear();
+    const m = await startMock({ host: 'voe', voeMode: mode });
+    const ups = [];
+    const r = await pollProcessing('voe', { apiKey: m.KEY, fileCode: 'voe123', onUpdate: (x) => ups.push(x), intervalMs: 10, baseUrls: { voe: `${m.base}/api` } });
+    await m.close(); return { r, ups };
+  };
+  await t('processing: VOE real % from encodings/list (10 -> 60 -> gone => done), filtered by file_code', async () => {
+    const { r, ups } = await voePoll('encode');
+    assert.ok(r.done && !r.indeterminate);
+    const enc = ups.filter((u) => u.state === 'encoding');
+    // (the shared list is cached ~3 s, so polls at a 10 ms test interval repeat a value: compare the distinct sequence)
+    assert.deepStrictEqual([...new Set(enc.map((u) => `${u.pct}/${u.minPct}`))], ['20/10', '70/60']);
+    assert.strictEqual(ups[ups.length - 1].state, 'done');
+  });
+  await t('processing: VOE entry with an error surfaces the text', async () => {
+    const { r } = await voePoll('error');
+    assert.strictEqual(r.encodingError, true); assert.strictEqual(r.error, 'Unsupported codec');
+  });
+  await t('processing: VOE file not found (file/info 404) -> error', async () => {
+    const { r } = await voePoll('notfound');
+    assert.ok(/404|not found/.test(r.error));
+  });
+  await t('processing: VOE list unusable -> honest indeterminate', async () => {
+    const { r, ups } = await voePoll('nolist');
+    assert.ok(r.indeterminate); assert.strictEqual(ups[ups.length - 1].indeterminate, true);
+  });
+  await t('processing: VOE shares ONE encodings/list request across files in flight', async () => {
+    require('../src/lib/hostStatus').voeShared.clear();
+    const m = await startMock({ host: 'voe', voeMode: 'encode' });
+    await Promise.all(['a', 'b', 'c', 'd'].map((c) => pollProcessing('voe', { apiKey: m.KEY, fileCode: c, onUpdate: () => {}, intervalMs: 5000, maxMs: 300, baseUrls: { voe: `${m.base}/api` } })));
+    assert.strictEqual(m.state.voeEncCalls, 1);
+    await m.close();
+  });
   await t('processing: VOE without flag -> honest indeterminate, no number', async () => {
     const m = await startMock({ voeNoFlag: true });
     const ups = [];
@@ -133,7 +167,7 @@ const t = async (name, fn) => { try { await fn(); pass += 1; console.log('ok  -'
     assert.deepStrictEqual(parseEarnvid({ result: [{ canplay: 1 }] }, {}).state, 'done');
     assert.strictEqual(parseEarnvid({ result: [{ canplay: 0 }] }, { result: [{ progress: 10 }, { progress: 30 }] }).pct, 20);
     assert.strictEqual(parseDood({ result: [{ canplay: 0 }] }).pct, null);
-    assert.strictEqual(parseVoe({ result: [{ status: 200 }] }).state, 'unknown');
+    assert.strictEqual(require('../src/lib/hostStatus').parseVoeEncodings({ data: [{ file_code: 'x', percent: 40 }] }, 'x').pct, 40);
     assert.strictEqual(classifyError({ code: 'ETIMEDOUT', message: 'connect ETIMEDOUT 1.2.3.4:443' }).cls, 'connection');
     assert.strictEqual(classifyError({ httpStatus: 507, message: 'x' }).cls, 'quota');
     assert.strictEqual(classifyError({ httpStatus: 500, message: 'x' }).cls, 'http5xx');

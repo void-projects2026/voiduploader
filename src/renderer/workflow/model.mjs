@@ -27,7 +27,7 @@ export function hostView(h, job = {}) {
   const relay = job.viaServer ? (job.relay || {}) : null;
   const base = { host: h.host, speed, pct: null, step: 0, tip: null, link: h.embedUrl || null, code: h.fileCode || null };
   if (h.status === 'error') {
-    return { ...base, phase: 'error', step: h.stage === 'processing' ? 1 : 0, label: h.error || ERR_AR[h.errClass] || ERR_AR.unknown, tip: h.detail || null, errClass: h.errClass || 'unknown', cancelled: h.errClass === 'cancelled' };
+    return { ...base, phase: 'error', step: (h.stage === 'processing' || (h.processing && h.processing.state === 'error')) ? 1 : 0, label: h.error || ERR_AR[h.errClass] || ERR_AR.unknown, tip: h.detail || null, errClass: h.errClass || 'unknown', cancelled: h.errClass === 'cancelled' };
   }
   if (h.status === 'done') {
     const ind = h.processing && h.processing.indeterminate;

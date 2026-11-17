@@ -88,6 +88,7 @@ async function trackProcessing({ host, apiKey, fileCode, signal, setHostState })
     onUpdate: (s) => setHostState({ status: s.state === 'done' ? 'done' : 'processing', stage: s.state === 'done' ? 'done' : 'processing', processing: s }),
   });
   if (r.cancelled) return;
+  if (r.encodingError) { setHostState({ status: 'error', stage: 'error', error: `فشلت المعالجة لدى الاستضافة: ${r.error}`, errClass: 'rejected', detail: r.error, processing: { state: 'error', pct: null } }); return; }
   if (r.timedOut || r.error) setHostState({ status: 'done', stage: 'done', processing: { state: 'unknown', pct: null, indeterminate: true, note: r.error || 'لم تؤكد الاستضافة الجاهزية' } });
 }
 

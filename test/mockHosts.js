@@ -49,13 +49,26 @@ function startMock(opts = {}) {
         const delay = opts.responseDelay || 0;
         setTimeout(() => {
           if (opts.host === 'doodstream') return send(200, { status: 200, result: [{ filecode: 'dood123', canplay: 0 }] });
-          if (opts.host === 'voe') return send(200, { success: true, file: { file_code: 'voe123' } });
+          if (opts.host === 'voe') return send(200, { success: true, message: 'ok', file: { id: 1, file_code: 'voe123', file_title: 'x', encoding_necessary: true } });
           send(200, { msg: 'OK', status: 200, files: [{ filecode: 'earn123', filename: 'x.mp4', status: 'OK' }] });
         }, delay);
       });
       return;
     }
+    if (url.pathname === '/api/encodings/list') {
+      state.voeEncCalls = (state.voeEncCalls || 0) + 1;
+      if (!opts.voeMode) return send(404, { status: 404 });
+      const mode = opts.voeMode;
+      const n = state.voeEncCalls;
+      const other = { file_code: 'someoneelse', status: 'ENCODING', percent: 5, quality: 480 };
+      let data = [other];
+      if (mode === 'encode') { if (n === 1) data.push({ file_code: 'voe123', status: 'ENCODING', percent: 10, quality: 1080 }, { file_code: 'voe123', status: 'ENCODING', percent: 30, quality: 720 }); else if (n === 2) data.push({ file_code: 'voe123', status: 'ENCODING', percent: 60, quality: 1080 }, { file_code: 'voe123', status: 'ENCODING', percent: 80, quality: 720 }); }
+      if (mode === 'error') data.push({ file_code: 'voe123', status: 'ERROR', percent: 12, quality: 1080, error: 'Unsupported codec' });
+      if (mode === 'nolist') return send(200, { message: 'weird' });
+      return send(200, { data });
+    }
     if (url.pathname === '/api/file/info') {
+      if (opts.host === 'voe' || opts.voeMode) { if (opts.voeMode === 'notfound') return send(200, { status: 200, result: [{ status: 404, fileCode: url.searchParams.get('file_code') }] }); if (opts.voeMode) return send(200, { status: 200, result: [{ status: 200, fileCode: url.searchParams.get('file_code'), name: 'x' }] }); }
       state.infoCalls += 1;
       const canplay = state.infoCalls > (opts.canplayAfter ?? 3) ? 1 : 0;
       return send(200, { status: 200, result: [opts.voeNoFlag ? { file_code: 'voe123', status: 200 } : { file_code: url.searchParams.get('file_code'), canplay, status: canplay ? 'Ready' : 'Encoding' }] });
