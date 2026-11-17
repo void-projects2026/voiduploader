@@ -5,7 +5,7 @@ const { autoUpdater } = require('electron-updater');
 
 const site = require('./lib/site');
 const { HOST_KEYS } = require('./lib/hosts');
-const { sessionStore, configStore, listJobs, upsertJob, getJob } = require('./lib/stores');
+const { sessionStore, configStore, listJobs, upsertJob, getJob, flushJobs } = require('./lib/stores');
 const uploadManager = require('./lib/uploadManager');
 const pyTool = require('./lib/pyTool');
 const { registerToolIpc } = require('./lib/toolIpc');
@@ -131,6 +131,7 @@ app.on('window-all-closed', () => {
 
 app.on('before-quit', () => {
   isQuitting = true;
+  flushJobs();
   pyTool.stopBridge();
 });
 
@@ -272,7 +273,7 @@ ipcMain.handle('upload:checkEpisode', async (_e, { animeId, episodeNumber }) => 
 });
 
 // Shared by the Upload tab and the scheduler (src/lib/scheduler.js).
-async function queueEpisodeImpl({ animeId, animeTitle, episodeNumber, filePath, hosts, title, teamId, isFree, extra }) {
+async function queueEpisodeImpl({ animeId, animeTitle, episodeNumber, filePath, hosts, title, teamId, isFree, extra, viaServer }) {
   let episodeId;
   const existing = await withAuthRetry((t) => site.listEpisodes(t, animeId));
   const found = existing.success ? existing.episodes.find((ep) => Number(ep.episode_number) === Number(episodeNumber)) : null;
@@ -291,6 +292,7 @@ async function queueEpisodeImpl({ animeId, animeTitle, episodeNumber, filePath, 
     filePath,
     hosts,
     accessToken: currentToken(),
+    viaServer: !!viaServer, // "upload one copy to our server": only this app's admin/sub-admin session can use it (server re-checks)
     extra,
   });
   broadcastOps();
@@ -333,30 +335,15 @@ ipcMain.handle('shell:openEpisode', (_e, { animeId, episodeNumber }) => {
 // the whole upload from the file still sitting on disk. Called once, right
 // after the renderer confirms it has a logged-in session.
 ipcMain.handle('ops:resumeIncomplete', async () => {
-  const stuck = listJobs().filter((j) => j.hosts.some((h) => h.status === 'uploading' || h.status === 'waiting'));
+  const stuck = listJobs().filter((j) => j.hosts.some((h) => ['uploading', 'waiting', 'pending', 'processing'].includes(h.status)));
+  let resumed = 0;
   for (const job of stuck) {
-    if (!job.filePath || !fs.existsSync(job.filePath)) continue;
-    for (const h of job.hosts) {
-      if (h.status !== 'uploading' && h.status !== 'waiting') continue;
-      uploadManager.retryHostUpload({
-        jobId: job.id,
-        episodeId: job.episodeId,
-        animeId: job.animeId,
-        host: h.host,
-        filePath: job.filePath,
-        accessToken: currentToken(),
-        onUpdate: (patch) => {
-          const current = getJob(job.id);
-          if (!current) return;
-          const hostsArr = current.hosts.map((x) => (x.host === patch.host ? { ...x, ...patch } : x));
-          upsertJob({ id: job.id, hosts: hostsArr });
-          broadcastOps();
-        },
-      });
-    }
+    if (await uploadManager.resumeJob(job, currentToken()).catch(() => false)) resumed += 1;
   }
-  return { resumed: stuck.length };
+  return { resumed };
 });
+
+ipcMain.handle('ops:cancelJob', (_e, jobId) => ({ cancelled: uploadManager.cancelJob(jobId) }));
 
 function broadcastOps() {
   if (mainWindow && !mainWindow.isDestroyed()) {
@@ -364,4 +351,6 @@ function broadcastOps() {
   }
 }
 
+uploadManager.setAuthProvider({ getToken: currentToken, refresh: refreshToken });
+uploadManager.setChangeListener(broadcastOps); // live diagram: pushed (throttled to 4/s) on every progress change
 setInterval(broadcastOps, 3000);

@@ -4,7 +4,8 @@ import { useOps } from '../context/OpsContext.jsx';
 import { useToast } from '../context/ToastContext.jsx';
 
 const HOST_LABEL = { earnvid: 'EarnVid', doodstream: 'Doodstream', voe: 'Voe' };
-const BADGE_CLASS = { pending: 'badge-pending', waiting: 'badge-pending', uploading: 'badge-uploading', done: 'badge-done', error: 'badge-error' };
+const BADGE_CLASS = { pending: 'badge-pending', waiting: 'badge-pending', uploading: 'badge-uploading', processing: 'badge-uploading', done: 'badge-done', error: 'badge-error' };
+const STATUS_AR = { pending: 'بانتظار', waiting: 'بانتظار', uploading: 'إرسال', processing: 'معالجة', done: 'تم', error: 'فشل' };
 const STATUS_FILTERS = [
   { id: 'all', label: 'الكل' },
   { id: 'uploading', label: 'جارِ الرفع' },
@@ -14,7 +15,7 @@ const STATUS_FILTERS = [
 
 function jobOverallStatus(job) {
   if (job.hosts.some((h) => h.status === 'error')) return 'error';
-  if (job.hosts.some((h) => h.status === 'uploading' || h.status === 'waiting')) return 'uploading';
+  if (job.hosts.some((h) => h.status === 'uploading' || h.status === 'waiting' || h.status === 'processing')) return 'uploading';
   if (job.hosts.every((h) => h.status === 'done')) return 'done';
   return 'pending';
 }
@@ -29,7 +30,7 @@ function StatsBar({ jobs }) {
       let total = 0;
       for (const j of jobs) {
         const h = j.hosts.find((x) => x.host === host);
-        if (!h || h.status === 'pending' || h.status === 'waiting' || h.status === 'uploading') continue;
+        if (!h || h.status === 'pending' || h.status === 'waiting' || h.status === 'uploading' || h.status === 'processing') continue;
         total += 1;
         if (h.status === 'done') done += 1;
       }
@@ -59,19 +60,19 @@ function HostRow({ job, h }) {
   return (
     <div className="flex items-center gap-2.5 py-1">
       <span className="w-20 text-xs text-zinc-400 shrink-0">{HOST_LABEL[h.host] || h.host}</span>
-      <span className={`badge ${BADGE_CLASS[h.status] || 'badge-pending'} w-24 justify-center`}>{h.status}</span>
+      <span className={`badge ${BADGE_CLASS[h.status] || 'badge-pending'} w-24 justify-center`}>{STATUS_AR[h.status] || h.status}</span>
       <div className="flex-1 h-1.5 bg-border rounded-full overflow-hidden">
         <div className="h-full bg-accent transition-all" style={{ width: `${h.progress || 0}%` }} />
       </div>
-      <span className="text-[11px] text-zinc-500 w-10 text-left">{h.progress || 0}%</span>
-      {h.status === 'done' && h.embedUrl && (
+      <span className="text-[11px] text-zinc-500 w-10 text-left">{h.status === 'processing' ? (h.processing && typeof h.processing.pct === 'number' ? `${h.processing.pct}%` : '...') : `${h.progress || 0}%`}</span>
+      {(h.status === 'done' || h.status === 'processing') && h.embedUrl && (
         <button onClick={() => { navigator.clipboard.writeText(h.embedUrl); push('تم نسخ الرابط', 'success'); }} className="text-zinc-500 hover:text-zinc-200" title="نسخ رابط التضمين">
           <Copy className="w-3.5 h-3.5" />
         </button>
       )}
       {h.status === 'error' && (
         <>
-          <span title={h.error} className="text-rose-400"><AlertTriangle className="w-3.5 h-3.5" /></span>
+          <span title={[h.error, h.detail].filter(Boolean).join(' - ')} className="text-rose-400"><AlertTriangle className="w-3.5 h-3.5" /></span>
           <button onClick={() => retryHost(job.id, h.host)} className="text-accent hover:text-blue-400" title="إعادة المحاولة"><RotateCw className="w-3.5 h-3.5" /></button>
         </>
       )}
@@ -96,7 +97,7 @@ export default function OpsTab() {
 
   return (
     <div className="max-w-4xl">
-      <h2 className="text-lg font-bold text-white mb-5">العمليات</h2>
+      <h2 className="text-lg font-bold text-white mb-5">سجل العمليات</h2>
 
       {jobs.length > 0 && <StatsBar jobs={jobs} />}
 

@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { Search, FileVideo, FolderOpen, Loader2, CheckCircle2, XCircle, UploadCloud } from 'lucide-react';
+import { Search, FileVideo, FolderOpen, Loader2, CheckCircle2, XCircle, UploadCloud, Server } from 'lucide-react';
 import { useToast } from '../context/ToastContext.jsx';
 import { useWork } from '../context/WorkContext.jsx';
 
@@ -88,7 +88,7 @@ export function HostChecklist({ hosts, setHosts }) {
   );
 }
 
-function SingleEpisode({ hosts }) {
+function SingleEpisode({ hosts, viaServer, onNavigate }) {
   const { selectedWork } = useWork();
   const { push, confirm } = useToast();
   const [episodeNumber, setEpisodeNumber] = useState('');
@@ -154,10 +154,12 @@ function SingleEpisode({ hosts }) {
       episodeNumber: Number(episodeNumber),
       filePath,
       hosts: effective,
+      viaServer,
     });
     setBusy(false);
     if (!result.success) return push(result.error || 'فشل بدء الرفع', 'error');
-    push(`بدأ رفع الحلقة ${episodeNumber} -- تابع في تاب العمليات`, 'success');
+    push(`بدأ رفع الحلقة ${episodeNumber}`, 'success');
+    onNavigate && onNavigate('live');
     setEpisodeNumber('');
     setFilePath(null);
     setPresence(null);
@@ -200,7 +202,7 @@ function SingleEpisode({ hosts }) {
   );
 }
 
-function BulkFolder({ hosts }) {
+function BulkFolder({ hosts, viaServer, onNavigate }) {
   const { selectedWork } = useWork();
   const { push, confirm } = useToast();
   const [from, setFrom] = useState('');
@@ -254,10 +256,12 @@ function BulkFolder({ hosts }) {
         episodeNumber: file.guessedEpisode,
         filePath: file.path,
         hosts: effective,
+        viaServer,
       });
     }
     setBusy(false);
-    push(`بدأ رفع ${matched.length} حلقة -- تابع في تاب العمليات`, 'success');
+    push(`بدأ رفع ${matched.length} حلقة`, 'success');
+    onNavigate && onNavigate('live');
   };
 
   return (
@@ -286,16 +290,30 @@ function BulkFolder({ hosts }) {
   );
 }
 
-export default function UploadTab() {
+export function ViaServerToggle({ value, onChange }) {
+  return (
+    <label className={`flex items-start gap-3 mb-5 p-3 rounded-lg border cursor-pointer transition-colors ${value ? 'border-sky-500/50 bg-sky-500/5' : 'border-border'}`}>
+      <input type="checkbox" className="mt-1 accent-sky-500" checked={value} onChange={(e) => onChange(e.target.checked)} data-testid="via-server" />
+      <span>
+        <span className="flex items-center gap-1.5 text-sm text-white font-semibold"><Server className="w-4 h-4 text-sky-400" /> رفع نسخة واحدة إلى السيرفر (يرفع لي إلى الاستضافات الثلاث)</span>
+        <span className="block text-[11px] text-zinc-500 mt-1">يُرسل الملف مرة واحدة إلى سيرفر Despair على أجزاء قابلة للاستئناف، والسيرفر يرفعه للاستضافات ثم يحذفه. مفيد مع الإنترنت الضعيف. معطّل افتراضيًا.</span>
+      </span>
+    </label>
+  );
+}
+
+export default function UploadTab({ onNavigate }) {
   const [hosts, setHosts] = useState(['earnvid', 'doodstream', 'voe']);
+  const [viaServer, setViaServer] = useState(false);
   return (
     <div className="max-w-2xl">
       <h2 className="text-lg font-bold text-white mb-5">الرفع</h2>
       <WorkPicker />
       <label className="label">الاستضافات</label>
       <HostChecklist hosts={hosts} setHosts={setHosts} />
-      <SingleEpisode hosts={hosts} />
-      <BulkFolder hosts={hosts} />
+      <ViaServerToggle value={viaServer} onChange={setViaServer} />
+      <SingleEpisode hosts={hosts} viaServer={viaServer} onNavigate={onNavigate} />
+      <BulkFolder hosts={hosts} viaServer={viaServer} onNavigate={onNavigate} />
     </div>
   );
 }

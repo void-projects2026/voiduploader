@@ -207,12 +207,12 @@ function registerToolIpc({ ipcMain, shell, dialog, getWindow }) {
   // whole queue is idle so a batch yields ONE prompt ("delete N episodes?").
   let promptOpen = false;
 
-  const settled = (j) => j.hosts.length > 0 && j.hosts.every((h) => h.status === 'done' || h.status === 'error');
+  const settled = (j) => j.hosts.length > 0 && j.hosts.every((h) => h.status === 'done' || h.status === 'error' || h.status === 'processing');
   const inLibrary = (j) => j.filePath && library.isInside(j.filePath);
 
   function eligibleJobs() {
     return listJobs().filter(
-      (j) => !j.deletePrompted && inLibrary(j) && settled(j) && j.hosts.some((h) => h.status === 'done') && fs.existsSync(j.filePath)
+      (j) => !j.deletePrompted && inLibrary(j) && settled(j) && j.hosts.some((h) => h.status === 'done' || h.status === 'processing') && fs.existsSync(j.filePath)
     );
   }
 

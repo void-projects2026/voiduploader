@@ -29,3 +29,21 @@
   .badge-done { @apply bg-emerald-900/60 text-emerald-300; }
   .badge-error { @apply bg-rose-900/60 text-rose-300; }
 }
+
+/* ---- workflow diagram ---- */
+@keyframes wf-dash { to { stroke-dashoffset: -22; } }
+@keyframes wf-breathe { 0%, 100% { opacity: .45; } 50% { opacity: 1; } }
+@keyframes wf-blink { 0%, 100% { opacity: 1; } 35% { opacity: .15; } 70% { opacity: 1; } }
+@keyframes wf-indet { 0% { transform: translateX(-120%); } 100% { transform: translateX(320%); } }
+@keyframes wf-pop { 0% { transform: scale(.2); } 70% { transform: scale(1.25); } 100% { transform: scale(1); } }
+.wf-path.wf-sending, .wf-path.wf-retrying { animation: wf-dash .9s linear infinite; }
+.wf-path.wf-waiting { animation: wf-dash 2.4s linear infinite; }
+.wf-path.wf-processing { animation: wf-dash 2.2s linear infinite, wf-breathe 2.2s ease-in-out infinite; }
+.wf-path.wf-error { animation: wf-blink .7s ease-in-out 1; }
+.wf-chip-error, .wf-card-error { animation: wf-blink .7s ease-in-out 1; }
+.wf-indet { animation: wf-indet 1.5s ease-in-out infinite; }
+.wf-pop { animation: wf-pop .45s ease-out 1; }
+@media (prefers-reduced-motion: reduce) {
+  .wf-path, .wf-chip-error, .wf-card-error, .wf-indet, .wf-pop { animation: none !important; }
+  .wf-indet { width: 100% !important; opacity: .35; }
+}

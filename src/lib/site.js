@@ -12,25 +12,32 @@ const SUPABASE_ANON_KEY =
   'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJyb2xlIjoiYW5vbiIsImlzcyI6InN1cGFiYXNlIiwiaWF0IjoxNzkwMzczMDE4LCJleHAiOjE5NDgwNTMwMTh9.xYgAlC_9SuUCdzdff6wBYGWzYFmAI9apP_mk4DCPaVI';
 const SITE_URL = 'https://despair-world.com';
 
-async function jsonFetch(url, opts = {}) {
-  const res = await fetch(url, opts);
-  const text = await res.text();
-  let data = null;
+// Every call to the site has a hard timeout (no unlimited hangs) and a network failure becomes a normal
+// { ok:false, status:0, netError:true } result instead of an exception that kills the whole IPC call.
+async function jsonFetch(url, opts = {}, timeoutMs = 30000) {
   try {
-    data = text ? JSON.parse(text) : null;
-  } catch {
-    // non-JSON body, leave data null
+    const res = await fetch(url, { signal: AbortSignal.timeout(timeoutMs), ...opts });
+    const text = await res.text();
+    let data = null;
+    try {
+      data = text ? JSON.parse(text) : null;
+    } catch {
+      // non-JSON body, leave data null
+    }
+    return { ok: res.ok, status: res.status, data, raw: text };
+  } catch (err) {
+    return { ok: false, status: 0, data: null, raw: '', netError: true, errorMessage: err && err.message };
   }
-  return { ok: res.ok, status: res.status, data, raw: text };
 }
 
 async function login(email, password) {
-  const { ok, data } = await jsonFetch(`${SUPABASE_URL}/auth/v1/token?grant_type=password`, {
+  const { ok, data, netError } = await jsonFetch(`${SUPABASE_URL}/auth/v1/token?grant_type=password`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', apikey: SUPABASE_ANON_KEY },
     body: JSON.stringify({ email, password }),
   });
   if (!ok || !data?.access_token) {
+    if (netError) return { success: false, error: 'تعذر الاتصال بالموقع، تحقق من الإنترنت' };
     return { success: false, error: data?.error_description || data?.msg || 'بيانات الدخول غير صحيحة' };
   }
   const accessToken = data.access_token;
@@ -225,6 +232,7 @@ async function episodeHosts(accessToken, animeId) {
 }
 
 module.exports = {
+  SITE_URL,
   listWorksWithHosts,
   episodeHosts,
   login,

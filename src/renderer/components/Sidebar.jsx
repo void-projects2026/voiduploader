@@ -1,5 +1,5 @@
 import React from 'react';
-import { Clapperboard, UploadCloud, ListChecks, Settings, LogOut, Download, DownloadCloud, HardDrive, CalendarClock } from 'lucide-react';
+import { Clapperboard, UploadCloud, ListChecks, Settings, LogOut, Download, DownloadCloud, HardDrive, CalendarClock, Workflow } from 'lucide-react';
 import { useSession } from '../context/SessionContext.jsx';
 import { useOps } from '../context/OpsContext.jsx';
 import { useSchedule } from '../context/ScheduleContext.jsx';
@@ -10,7 +10,8 @@ const ITEMS = [
   { id: 'tool', label: 'التحميل', icon: DownloadCloud },
   { id: 'library', label: 'تحميلاتي', icon: HardDrive },
   { id: 'schedule', label: 'الجدول', icon: CalendarClock },
-  { id: 'ops', label: 'العمليات', icon: ListChecks },
+  { id: 'live', label: 'مسار الرفع', icon: Workflow },
+  { id: 'ops', label: 'سجل العمليات', icon: ListChecks },
   { id: 'settings', label: 'الإعدادات', icon: Settings },
 ];
 
@@ -19,7 +20,7 @@ export default function Sidebar({ active, onChange }) {
   const { jobs } = useOps();
   const { tasks: schedTasks } = useSchedule();
   const schedActive = schedTasks.filter((t) => ['running', 'waiting_decision', 'stopping'].includes(t.status)).length;
-  const activeCount = jobs.filter((j) => j.hosts.some((h) => h.status === 'uploading' || h.status === 'waiting')).length;
+  const activeCount = jobs.filter((j) => j.hosts.some((h) => h.status === 'uploading' || h.status === 'waiting' || h.status === 'processing')).length;
 
   return (
     <aside className="w-56 bg-panel border-l border-border flex flex-col">
@@ -49,7 +50,7 @@ export default function Sidebar({ active, onChange }) {
             {id === 'schedule' && schedActive > 0 && (
               <span className="ms-auto text-[10px] font-bold bg-accent text-white rounded-full w-5 h-5 flex items-center justify-center">{schedActive}</span>
             )}
-            {id === 'ops' && activeCount > 0 && (
+            {id === 'live' && activeCount > 0 && (
               <span className="ms-auto text-[10px] font-bold bg-accent text-white rounded-full w-5 h-5 flex items-center justify-center">{activeCount}</span>
             )}
           </button>

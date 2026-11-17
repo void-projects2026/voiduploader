@@ -75,6 +75,7 @@ contextBridge.exposeInMainWorld('api', {
   onSchedUpdated: (cb) => { ipcRenderer.on('sched:updated', (_e, t) => cb(t)); },
 
   listOps: () => ipcRenderer.invoke('ops:list'),
+  cancelJob: (jobId) => ipcRenderer.invoke('ops:cancelJob', jobId),
   retryHost: (payload) => ipcRenderer.invoke('ops:retryHost', payload),
   onOpsUpdated: (callback) => {
     ipcRenderer.on('ops:updated', (_event, jobs) => callback(jobs));

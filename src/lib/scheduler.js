@@ -143,7 +143,8 @@ function init({ ipcMain, getWindow, withAuthRetry, currentToken, queueEpisode, r
         task.current.hosts = job.hosts.map((h) => ({ host: h.host, status: h.status, progress: h.progress }));
         touch();
       }
-      if (job.hosts.every((h) => h.status === 'done' || h.status === 'error')) return job;
+      // 'processing' = the bytes are on the host and the link is saved; only its encoding is still running
+      if (job.hosts.every((h) => h.status === 'done' || h.status === 'error' || h.status === 'processing')) return job;
       if (Date.now() > deadline) throw new Error('انتهت مهلة الرفع');
       await sleep(2000);
     }
@@ -215,7 +216,7 @@ function init({ ipcMain, getWindow, withAuthRetry, currentToken, queueEpisode, r
       return fail(e.message || 'خطأ أثناء الرفع');
     }
 
-    const newlyDone = job.hosts.filter((h) => h.status === 'done').length;
+    const newlyDone = job.hosts.filter((h) => h.status === 'done' || h.status === 'processing').length;
     const failedHosts = job.hosts.filter((h) => h.status === 'error');
     const confirmed = HOSTS.length - targets.length + newlyDone; // hosts that now have this episode
 

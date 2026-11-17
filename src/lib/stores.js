@@ -17,27 +17,45 @@ const configStore = new Store({ name: 'config', defaults: { concurrency: 3 } });
 // so it survives app restarts and keeps updating while minimized to tray.
 const opsStore = new Store({ name: 'operations', defaults: { jobs: [] } });
 
+// Progress now updates several times a second, so the jobs list lives in memory and is written to disk
+// debounced (1 s) + on quit, instead of rewriting the whole JSON file on every progress tick.
+let jobsCache = null;
+let flushTimer = null;
+const jobsList = () => {
+  if (!jobsCache) jobsCache = opsStore.get('jobs', []);
+  return jobsCache;
+};
+function flushJobs() {
+  clearTimeout(flushTimer);
+  flushTimer = null;
+  if (jobsCache) opsStore.set('jobs', jobsCache);
+}
+function scheduleFlush() {
+  if (!flushTimer) flushTimer = setTimeout(flushJobs, 1000);
+}
+
 function listJobs() {
-  return opsStore.get('jobs', []);
+  return jobsList();
 }
 
 function upsertJob(job) {
-  const jobs = opsStore.get('jobs', []);
+  const jobs = jobsList();
   const idx = jobs.findIndex((j) => j.id === job.id);
   if (idx >= 0) jobs[idx] = { ...jobs[idx], ...job };
   else jobs.unshift(job);
-  opsStore.set('jobs', jobs);
+  if (jobs.length > 400) jobs.length = 400;
+  scheduleFlush();
   return jobs.find((j) => j.id === job.id);
 }
 
 function getJob(id) {
-  return opsStore.get('jobs', []).find((j) => j.id === id) || null;
+  return jobsList().find((j) => j.id === id) || null;
 }
 
 function clearFinishedJobs() {
-  const jobs = opsStore.get('jobs', []).filter((j) => j.hosts.some((h) => h.status === 'uploading' || h.status === 'pending'));
-  opsStore.set('jobs', jobs);
-  return jobs;
+  jobsCache = jobsList().filter((j) => j.hosts.some((h) => h.status === 'uploading' || h.status === 'pending' || h.status === 'processing'));
+  flushJobs();
+  return jobsCache;
 }
 
-module.exports = { sessionStore, configStore, opsStore, listJobs, upsertJob, getJob, clearFinishedJobs };
+module.exports = { sessionStore, configStore, opsStore, listJobs, upsertJob, getJob, clearFinishedJobs, flushJobs };

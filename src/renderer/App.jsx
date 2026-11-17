@@ -8,6 +8,7 @@ import Sidebar from './components/Sidebar.jsx';
 import AnimeTab from './components/AnimeTab.jsx';
 import UploadTab from './components/UploadTab.jsx';
 import OpsTab from './components/OpsTab.jsx';
+import WorkflowTab from './components/WorkflowTab.jsx';
 import SettingsTab from './components/SettingsTab.jsx';
 import ToolTab from './components/ToolTab.jsx';
 import LibraryTab from './components/LibraryTab.jsx';
@@ -36,7 +37,8 @@ function Shell() {
       <Sidebar active={activeTab} onChange={setActiveTab} />
       <main className="flex-1 overflow-y-auto p-7">
         {activeTab === 'anime' && <AnimeTab />}
-        {activeTab === 'upload' && <UploadTab />}
+        {activeTab === 'upload' && <UploadTab onNavigate={setActiveTab} />}
+        {activeTab === 'live' && <WorkflowTab />}
         {activeTab === 'tool' && <ToolTab />}
         {activeTab === 'library' && <LibraryTab />}
         {activeTab === 'schedule' && <ScheduleTab />}
